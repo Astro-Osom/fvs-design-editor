@@ -9,13 +9,14 @@ import {
   Crop,
   FlipHorizontal2,
   FlipVertical2,
+  ImageUpscale,
   Italic,
   SlidersHorizontal,
   Trash2,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
-import { findNode, nearestFace } from '../document/ops';
+import { findNode, imageStretch, nearestFace } from '../document/ops';
 import { formatSize } from '../document/presets';
 import type { DesignNode, ImageNode, TextNode } from '../document/types';
 import { availableFaces, WEIGHT_LABELS } from '../render/fonts';
@@ -30,7 +31,7 @@ import {
   updateSelection,
   updateSelectionLive,
 } from '../state/actions';
-import { endGesture, selectDoc, selectPage, useEditor } from '../state/store';
+import { endGesture, selectDoc, selectPage, store, useEditor } from '../state/store';
 import { Button, ColorField, Divider, IconButton, Labelled, NumberField, Select, shortcut } from './controls';
 import { FontPicker } from './FontPicker';
 
@@ -177,6 +178,9 @@ function TextControls({ node }: { node: TextNode }) {
 }
 
 function ImageControls({ node }: { node: ImageNode }) {
+  // Over 100% means the photo has fewer pixels than the space it fills on the page, so it looks soft.
+  const stretch = Math.round(imageStretch(node));
+  const soft = stretch > 100;
   return (
     <>
       <Button icon={<Crop size={16} />} keys="C" disabled={node.locked} onClick={() => startCrop(node.id)} data-testid="crop-button">
@@ -188,6 +192,22 @@ function ImageControls({ node }: { node: ImageNode }) {
       <IconButton label="Flip vertically" onClick={() => flipSelection('y')}>
         <FlipVertical2 size={16} />
       </IconButton>
+      <Button
+        variant={soft ? 'primary' : 'secondary'}
+        icon={<ImageUpscale size={16} />}
+        title={
+          soft
+            ? `This photo is stretched to ${stretch}% of its size and may look soft. Upscale it to sharpen it.`
+            : 'Make a larger, sharper copy of this photo for big exports'
+        }
+        onClick={() => store.setState({ dialog: 'upscale' })}
+        data-testid="upscale-button"
+        data-soft={soft ? 'true' : 'false'}
+        data-upscaled={node.upscale ? String(node.upscale.factor) : ''}
+      >
+        {node.upscale ? `Upscaled ${node.upscale.factor}×` : 'Upscale'}
+      </Button>
+      {soft && <span className="text-[12px] text-warn">Looks soft at this size</span>}
     </>
   );
 }

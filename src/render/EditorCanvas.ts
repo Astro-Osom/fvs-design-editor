@@ -20,7 +20,7 @@ import {
 } from '../document/geometry';
 import type { AssetId, DesignDocument, DesignNode, FontUse, ImageNode, NodeId, Page, Rect as RectSpec } from '../document/types';
 import { fontRequestsFor, loadFontsDetailed } from './fonts';
-import type { DecodedImage, ImageCache } from './imageCache';
+import { relativeTo, type DecodedImage, type ImageCache } from './imageCache';
 import {
   applyImageNode,
   applyMissingImageNode,
@@ -70,7 +70,7 @@ export interface EditorCanvasCallbacks {
   onRequestCrop(id: NodeId): void;
   /** Crop mode ended (applied, cancelled, or forced closed). */
   onCropEnded(): void;
-  onProblems(problems: { missingFonts: FontUse[]; missingAssets: AssetId[] }): void;
+  onProblems(problems: { missingFonts: FontUse[]; missingAssets: AssetId[]; lostEnlargements: NodeId[] }): void;
 }
 
 type EntryKind = 'image' | 'missing' | 'text';
@@ -205,18 +205,31 @@ export class EditorCanvas {
     const token = ++this.syncToken;
     const page = doc.pages[0];
     if (!page) return;
-    const assetIds = [...new Set(page.nodes.flatMap((n) => (n.type === 'image' ? [n.assetId] : [])))];
+    const photos = page.nodes.filter((n): n is ImageNode => n.type === 'image');
+    const lostEnlargements: NodeId[] = [];
     const [fonts, decoded] = await Promise.all([
       loadFontsDetailed(doc, fontRequestsFor(doc)),
-      Promise.all(assetIds.map(async (id) => [id, await this.images.getPreview(id)] as const)),
+      Promise.all(
+        photos.map(async (node) => {
+          // A photo with an enlarged copy is drawn from that copy, on the original's pixel grid.
+          const original = doc.assets[node.assetId];
+          if (node.upscale && original) {
+            const enlarged = await this.images.getPreview(node.upscale.assetId);
+            if (enlarged) return [node.id, relativeTo(enlarged, original.width, original.height)] as const;
+            lostEnlargements.push(node.id);
+          }
+          return [node.id, await this.images.getPreview(node.assetId)] as const;
+        }),
+      ),
     ]);
     if (token !== this.syncToken || this.disposed) return;
     this.doc = doc;
-    const sources = new Map(decoded);
+    const sources = new Map<NodeId, DecodedImage | null>(decoded);
     this.reconcile(page, sources, fonts.changed);
     this.callbacks.onProblems({
       missingFonts: fonts.missing,
-      missingAssets: assetIds.filter((id) => !sources.get(id)),
+      missingAssets: [...new Set(photos.filter((node) => !sources.get(node.id)).map((node) => node.assetId))],
+      lostEnlargements,
     });
   }
 
@@ -225,7 +238,7 @@ export class EditorCanvas {
     if (this.doc) void this.setDocument(this.doc);
   }
 
-  private reconcile(page: Page, sources: Map<AssetId, DecodedImage | null>, changedFonts: ReadonlySet<string> = new Set()): void {
+  private reconcile(page: Page, sources: Map<NodeId, DecodedImage | null>, changedFonts: ReadonlySet<string> = new Set()): void {
     const { canvas } = this;
     if (this.crop && !page.nodes.some((n) => n === this.crop!.node)) this.endCrop(false);
 
@@ -239,7 +252,7 @@ export class EditorCanvas {
     const seen = new Set<NodeId>();
     for (const node of page.nodes) {
       seen.add(node.id);
-      const source = node.type === 'image' ? (sources.get(node.assetId) ?? null) : null;
+      const source = node.type === 'image' ? (sources.get(node.id) ?? null) : null;
       const kind: EntryKind = node.type === 'text' ? 'text' : source ? 'image' : 'missing';
       let entry = this.entries.get(node.id);
       if (entry && (entry.kind !== kind || entry.source !== source)) {

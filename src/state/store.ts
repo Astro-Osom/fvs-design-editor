@@ -48,6 +48,8 @@ export interface Toast {
 export interface Warnings {
   missingAssets: AssetId[];
   missingFonts: FontUse[];
+  /** Photo layers whose enlarged copy cannot be found, so the original is shown instead. */
+  lostEnlargements: NodeId[];
   openElsewhere: boolean;
 }
 
@@ -65,14 +67,14 @@ export interface EditorState {
   editingText: boolean;
   zoom: number;
   leftPanel: LeftPanel | null;
-  dialog: 'export' | null;
+  dialog: 'export' | 'upscale' | null;
   warnings: Warnings;
   toast: Toast | null;
   /** A short message while something slow is happening, e.g. "Saving…". */
   busy: string | null;
 }
 
-const noWarnings: Warnings = { missingAssets: [], missingFonts: [], openElsewhere: false };
+const noWarnings: Warnings = { missingAssets: [], missingFonts: [], lostEnlargements: [], openElsewhere: false };
 
 const initialState: EditorState = {
   screen: 'start',

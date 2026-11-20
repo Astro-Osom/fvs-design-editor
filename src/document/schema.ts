@@ -42,6 +42,8 @@ const nodeBase = {
   shadow: shadowSchema.nullable(),
 };
 
+const upscaleMethod = z.enum(['realesr-general-x4v3', 'resample']);
+
 const imageNodeSchema = z.object({
   ...nodeBase,
   type: z.literal('image'),
@@ -51,6 +53,7 @@ const imageNodeSchema = z.object({
   crop: rectSchema,
   flipX: z.boolean(),
   flipY: z.boolean(),
+  upscale: z.object({ assetId: z.string().min(1), method: upscaleMethod, factor: z.number().min(1).max(8) }).nullable(),
 });
 
 const textNodeSchema = z.object({
@@ -88,6 +91,7 @@ const assetSchema = z.object({
   width: positive,
   height: positive,
   name: z.string(),
+  derivedFrom: z.object({ assetId: z.string().min(1), method: upscaleMethod, factor: z.number().min(1).max(8) }).optional(),
 });
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'must be a SHA-256 hex digest');
@@ -148,6 +152,15 @@ export const MIGRATIONS: Record<number, Migration> = {
   // 1 -> 2: documents list the fonts they use beyond the built-in ones.
   // Version 1 could only use built-in fonts, so the list starts empty.
   1: (doc) => ({ ...doc, schemaVersion: 2, fonts: [] }),
+  // 2 -> 3: a photo layer can draw from an enlarged copy of its image. Existing photos have none.
+  2: (doc) => ({
+    ...doc,
+    schemaVersion: 3,
+    pages: (doc.pages as { nodes: Record<string, unknown>[] }[]).map((page) => ({
+      ...page,
+      nodes: page.nodes.map((node) => (node.type === 'image' ? { ...node, upscale: null } : node)),
+    })),
+  }),
 };
 
 /** Bring a raw document up to `targetVersion` by running each migration in order. */
@@ -201,7 +214,7 @@ export function parseDocument(raw: unknown): { doc: DesignDocument; migratedFrom
         throw new DocumentError(`The design file is damaged (two layers share the id ${node.id}).`, 'invalid');
       }
       seen.add(node.id);
-      if (node.type === 'image' && !doc.assets[node.assetId]) {
+      if (node.type === 'image' && (!doc.assets[node.assetId] || (node.upscale && !doc.assets[node.upscale.assetId]))) {
         throw new DocumentError(
           `The design file is damaged (layer "${node.name}" refers to an image that is not listed).`,
           'invalid',

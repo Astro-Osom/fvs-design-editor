@@ -1,7 +1,7 @@
 import { CircleCheck, Info, Maximize, Minus, Plus, TriangleAlert, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
-import { documentFont } from '../document/ops';
+import { documentFont, findNode, nodeLabel } from '../document/ops';
 import { formatSize } from '../document/presets';
 import { findGoogleFamily } from '../fonts/googleCatalogue';
 import { addFontFilesFromPicker, getMissingFontFromGoogle } from '../state/fontActions';
@@ -14,6 +14,7 @@ import { ExportDialog } from './ExportDialog';
 import { LeftRail } from './LeftRail';
 import { RightPanel } from './RightPanel';
 import { TopBar } from './TopBar';
+import { UpscaleDialog } from './UpscaleDialog';
 
 const warningButton = 'shrink-0 rounded bg-raised px-2 py-0.5 text-[12px] font-medium text-ink hover:bg-hover disabled:opacity-50';
 
@@ -84,6 +85,11 @@ function Warnings() {
   }
   if (warnings.openElsewhere) {
     lines.push('This design is also open in another tab or window. Changes made here and there can overwrite each other; close one of them.');
+  }
+  const doc = useEditor(selectDoc);
+  for (const id of warnings.lostEnlargements) {
+    const node = doc && findNode(doc, id)?.node;
+    if (node) lines.push(`The enlarged copy of "${nodeLabel(node)}" is missing, so the original is shown. Use Upscale on it again to bring it back.`);
   }
   const missingFamilies = [...new Set(warnings.missingFonts.map((f) => f.family))];
   if (!lines.length && !missingFamilies.length) return null;
@@ -201,6 +207,7 @@ export function Editor() {
       </div>
       <StatusBar />
       {dialog === 'export' && <ExportDialog />}
+      {dialog === 'upscale' && <UpscaleDialog />}
     </div>
   );
 }

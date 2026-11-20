@@ -20,16 +20,22 @@ protocol.registerSchemesAsPrivileged([
   { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
-// The page may only load its own files. The single exception is Google Fonts: when
-// the person picks a Google font, its stylesheet and files are fetched from Google's
-// two font hosts (see src/fonts/googleDownload.ts). Nothing else can be contacted.
+// The page may only load its own files, with two exceptions, both downloads the
+// person asks for:
+// - Google Fonts: a font's stylesheet and files come from Google's two font hosts
+//   (see src/fonts/googleDownload.ts).
+// - The photo-enlarging model: one file from Hugging Face and the host its
+//   downloads are served from (see src/upscale/model.ts).
+// Nothing else can be contacted. 'wasm-unsafe-eval' lets the page compile the
+// WebAssembly that runs that model; it does not allow eval of JavaScript.
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
   "font-src 'self' data:",
-  "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com",
+  "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://huggingface.co https://*.hf.co",
+  "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",

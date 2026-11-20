@@ -10,6 +10,30 @@ export interface DecodedImage {
   sourceHeight: number;
 }
 
+const relativeViews = new WeakMap<DecodedImage, Map<string, DecodedImage>>();
+
+/**
+ * The same picture, described against a differently sized original.
+ *
+ * A photo layer's crop is always in the pixels of its ORIGINAL image. When the
+ * layer draws from an enlarged copy instead, this gives that copy the original's
+ * pixel grid: `scale` becomes element pixels per original pixel, so every piece
+ * of crop and placement maths works unchanged. The result is remembered, so the
+ * same input always gives the same object.
+ */
+export function relativeTo(image: DecodedImage, originalWidth: number, originalHeight: number): DecodedImage {
+  if (image.sourceWidth === originalWidth && image.sourceHeight === originalHeight) return image;
+  let views = relativeViews.get(image);
+  if (!views) relativeViews.set(image, (views = new Map()));
+  const key = `${originalWidth}x${originalHeight}`;
+  let view = views.get(key);
+  if (!view) {
+    view = { element: image.element, scale: image.element.width / originalWidth, sourceWidth: originalWidth, sourceHeight: originalHeight };
+    views.set(key, view);
+  }
+  return view;
+}
+
 /** Longest edge of the working preview used while editing. Export always uses the original. */
 export const PREVIEW_MAX_EDGE = 2048;
 

@@ -158,7 +158,8 @@ test('a Google font is downloaded once, travels inside the project, and then nee
   const saved = readProject(project);
   expect(saved.manifest.formatVersion).toBe(2);
   expect(saved.manifest.fonts).toEqual([{ family: 'Lobster', weight: 400, style: 'normal', source: 'google', embedded: true, license: 'OFL-1.1' }]);
-  expect(saved.document.schemaVersion).toBe(2);
+  // Fonts arrived in document format 2; later formats keep them.
+  expect(saved.document.schemaVersion).toBeGreaterThanOrEqual(2);
   expect(saved.document.fonts).toHaveLength(1);
   expect(saved.document.fonts[0]).toMatchObject({ family: 'Lobster', source: 'google', embed: true });
   expect(saved.fontPaths).toHaveLength(2);

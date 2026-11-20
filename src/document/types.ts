@@ -13,7 +13,7 @@
  *   In matrix terms: page = translate(x, y) * rotate(rotation) * local.
  */
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export type NodeId = string;
 export type AssetId = string;
@@ -53,8 +53,29 @@ interface NodeBase {
   shadow: Shadow | null;
 }
 
+/** How an enlarged copy of a photo was made. */
+export type UpscaleMethod =
+  /** The Real-ESRGAN "general x4 v3" model, run on this computer. It adds plausible detail. */
+  | 'realesr-general-x4v3'
+  /** A plain high-quality resize (Lanczos). It adds no detail. */
+  | 'resample';
+
+/**
+ * An enlarged copy of a photo, used in place of the original when drawing.
+ * The original is kept and `assetId` on the node still points to it, so turning
+ * this off (setting it to null) gives the original back.
+ */
+export interface ImageUpscale {
+  /** The enlarged copy, stored like any other asset under the hash of its bytes. */
+  assetId: AssetId;
+  method: UpscaleMethod;
+  /** How many times larger each side is than the original. */
+  factor: number;
+}
+
 export interface ImageNode extends NodeBase {
   type: 'image';
+  /** The ORIGINAL image. Crop and size are always expressed against it. */
   assetId: AssetId;
   /** Size of the visible frame on the page. */
   width: number;
@@ -66,6 +87,8 @@ export interface ImageNode extends NodeBase {
   crop: Rect;
   flipX: boolean;
   flipY: boolean;
+  /** An enlarged copy to draw from instead of the original, or null. */
+  upscale: ImageUpscale | null;
 }
 
 export type TextAlign = 'left' | 'center' | 'right';
@@ -112,6 +135,8 @@ export interface AssetInfo {
   height: number;
   /** Original file name, for display only. */
   name: string;
+  /** Set on an enlarged copy: which original it was made from, and how. */
+  derivedFrom?: { assetId: AssetId; method: UpscaleMethod; factor: number };
 }
 
 /**

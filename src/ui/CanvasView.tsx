@@ -36,11 +36,17 @@ export function CanvasView() {
       onCropEnded: () => {
         if (store.getState().cropNodeId !== null) store.setState({ cropNodeId: null });
       },
-      onProblems: ({ missingFonts, missingAssets }) => {
+      onProblems: ({ missingFonts, missingAssets, lostEnlargements }) => {
         const { warnings } = store.getState();
         const fontKeys = (list: typeof missingFonts) => list.map((f) => `${f.family}|${f.weight}|${f.style}`);
-        if (sameList(warnings.missingAssets, missingAssets) && sameList(fontKeys(warnings.missingFonts), fontKeys(missingFonts))) return;
-        store.setState({ warnings: { ...warnings, missingAssets, missingFonts } });
+        if (
+          sameList(warnings.missingAssets, missingAssets) &&
+          sameList(fontKeys(warnings.missingFonts), fontKeys(missingFonts)) &&
+          sameList(warnings.lostEnlargements, lostEnlargements)
+        ) {
+          return;
+        }
+        store.setState({ warnings: { ...warnings, missingAssets, missingFonts, lostEnlargements } });
       },
     });
     editorRef.current = editor;

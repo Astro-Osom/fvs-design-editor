@@ -11,6 +11,7 @@ This describes how the editor is built as of the first working slice, why the ma
 | Desktop shell | Electron | The desktop app uses the same Chromium engine as the web version and the tests, so text layout and export are the same everywhere. |
 | Source of truth | Our own versioned document | Fabric is used only to draw and to handle gestures. Nothing Fabric produces is ever saved. |
 | Project file | A zip with the document, the original images and the fonts it may carry | One file that reopens anywhere, offline. |
+| Upscaling photos | Real-ESRGAN "general x4 v3", run on the person's computer with ONNX Runtime Web | The only surveyed model that is clearly licensed (BSD-3-Clause), small (4.9 MB) and fast enough. See [research/upscaling.md](research/upscaling.md). |
 | More fonts | Google Fonts downloaded on first use; installed fonts used where they are | Google's fonts are openly licensed but too many to ship; installed fonts are mostly licensed and may not be copied. See [research/fonts.md](research/fonts.md). |
 
 ### Canvas library: proof of concept
@@ -48,6 +49,7 @@ src/
   state/        Undo history, the store, actions, autosave
   assets/       Where original image bytes are kept
   fonts/        Font files and families: reading font files, Google Fonts, installed fonts, the font store
+  upscale/      Enlarging photos: the model and its download, tiling, the worker, a plain resize
   storage/      Browser database, recent projects, the project file format
   render/       Fabric: fonts, image decoding, node-to-object mapping, the canvas controller, export
   platform/     Opening and saving files (desktop, browser with file access, plain browser)
@@ -82,6 +84,8 @@ Defined in `src/document/types.ts`. It is plain JSON: a schema version, pages, a
 
 **Images are nondestructive.** An image node holds an asset id, the frame it occupies on the page, and a `crop` rectangle in the original image's pixels. Cropping changes the frame and the crop rectangle; the stored image is never touched. The maths is in `src/document/geometry.ts`.
 
+**Upscaling is nondestructive too.** An enlarged copy of a photo is a second asset with its own hash, which records what it was made from and how. The image node gains an `upscale` entry pointing at it; `assetId`, the crop and the frame still describe the original. Setting `upscale` back to null gives the original back exactly. See [Upscaling](#upscaling).
+
 **Operations are pure.** Every function in `src/document/ops.ts` takes a document and returns a new one. That is what makes undo trivial and the whole layer testable without a browser.
 
 **Versioning.** `schemaVersion` is 2. `parseDocument` in `src/document/schema.ts` runs any migrations in order, then validates the result. A document from a newer version is refused with a clear message instead of being half-loaded.
@@ -90,8 +94,9 @@ Defined in `src/document/types.ts`. It is plain JSON: a schema version, pages, a
 |---|---|---|
 | 1 | First format. Built-in fonts only. | |
 | 2 | Adds `fonts`, the table of fonts beyond the built-in ones. | The table starts empty, because format 1 could only use built-in fonts. |
+| 3 | Adds `upscale` to photo layers, and `derivedFrom` to the asset record of an enlarged copy. | Every photo layer gets `upscale: null`. |
 
-`tests/fixtures/document-v1.json` is a format 1 document; a test opens it and checks that nothing but the version and the new table changes.
+`tests/fixtures/document-v1.json` and `document-v2.json` are documents in the older formats; tests open them and check that nothing but the version and the new fields changes.
 
 ## Rendering and gestures
 
@@ -102,6 +107,18 @@ Defined in `src/document/types.ts`. It is plain JSON: a schema version, pages, a
 **Crop mode** is explicit. The whole original is shown dimmed, with a frame over the part that is kept. Moving or resizing the frame never moves the photo. Enter applies, Escape cancels, and nothing changes in the document until it is applied.
 
 **Working previews.** While editing, photos larger than 2048 pixels are drawn from a downscaled copy. Export always decodes the original.
+
+## Upscaling
+
+A photo that is stretched beyond its resolution looks soft. Upscale makes a larger copy with more detail, worked out on the person's own computer. The research, licences and measurements are in [research/upscaling.md](research/upscaling.md).
+
+**What is stored.** The enlarged copy is a PNG in the asset store under its own hash. The document lists it like any asset, with `derivedFrom` saying which original it came from, by which method and by how much. The photo layer's `upscale` points at it. Because the layer's crop is always in the original's pixels, drawing from the copy is only a change of scale (`relativeTo` in `src/render/imageCache.ts`); crop, placement and undo need no special cases. A project file therefore reopens with the enlarged photo and never recomputes it. If the copy cannot be found, the original is drawn and a warning says so.
+
+**How it is made** (`src/upscale`). The model runs in a Web Worker, on the graphics card through WebGPU where that works and on the processor through WebAssembly otherwise. The photo is cut into equal tiles with a margin of context, and only the middle of each result is kept, so every output pixel is written once and there are no seams (`tiles.ts`, pure and tested without a browser). The worker reports progress per tile; cancelling stops the worker. Nothing in the design changes until the result is accepted, which is one undo step.
+
+**The model file** is not in the repository or the app. It is downloaded on first use from an address pinned to an exact revision, accepted only if its SHA-256 matches, and kept in browser storage for offline use (`model.ts`). If it cannot be downloaded or cannot run, a plain resize is offered and labelled as adding no new detail.
+
+**Export** counts the enlarged copy: the "stretched and may look soft" warning is based on the pixels the photo is actually drawn from, and suggests Upscale when a photo has not been enlarged.
 
 ## Fonts
 
@@ -130,7 +147,7 @@ The reasoning and the checks behind this are in [research/fonts.md](research/fon
 
 There are three layers, from most convenient to most durable:
 
-1. **Asset store and font store.** Original image bytes and font file bytes in the browser's database, keyed by content hash.
+1. **Asset store and font store.** Original image bytes (and enlarged copies) and font file bytes in the browser's database, keyed by content hash. The downloaded enlarging model is kept there too.
 2. **Autosave.** The document is written to the browser's database shortly after every change, with a visible status (saving, saved, failed). This backs the recent-designs screen and recovery after a crash. Each write replaces the record in a single transaction, so a failed write leaves the previous copy intact. If the same project is open in two tabs, the second one says so.
 3. **Project file.** The copy the person controls, and the one that moves between machines.
 
@@ -141,7 +158,7 @@ A `.fvsdesign` file is a zip archive:
 ```text
 manifest.json            Format name and version, app version, save time, and every font used with its source and licence
 document.json            The document
-assets/<sha256>.<ext>    Every original image, byte for byte
+assets/<sha256>.<ext>    Every original image, and every enlarged copy in use, byte for byte
 fonts/<sha256>.<ext>     Font files the design is allowed to carry, byte for byte
 ```
 
@@ -166,7 +183,7 @@ Saving never damages an existing file. The desktop app writes a temporary file a
 
 ## Desktop shell
 
-`electron/main.ts` serves the built web app from an `app://` address, which gives the page a stable, secure origin and its own storage. The page runs sandboxed with no Node access. Its content security policy allows its own files and, for downloads, Google's two font hosts; nothing else can be contacted. The preload script exposes three functions: open a project, save a project, save an export.
+`electron/main.ts` serves the built web app from an `app://` address, which gives the page a stable, secure origin and its own storage. The page runs sandboxed with no Node access. Its content security policy allows its own files and, for downloads the person asks for, Google's two font hosts and Hugging Face (for the enlarging model); nothing else can be contacted. It also allows compiling WebAssembly, which the model's runtime needs. The preload script exposes three functions: open a project, save a project, save an export.
 
 Electron grants every browser permission unless told otherwise. The app allows exactly one, listing installed fonts, and refuses the rest (camera, location, notifications and so on).
 
@@ -174,14 +191,16 @@ Electron grants every browser permission unless told otherwise. The app allows e
 
 On macOS (Apple silicon), 20 November 2026:
 
-- 63 unit tests pass.
-- 18 end-to-end tests pass: 15 in Chrome at 2x screen density and 3 in the Electron app.
+- 81 unit tests pass.
+- 22 end-to-end tests pass: 18 in Chrome at 2x screen density and 4 in the Electron app.
 - The main browser test checks that a 3840 × 2160 PNG export is byte-for-byte identical before saving, after zooming the editor, after reopening the project file, and after reopening from autosave.
 - The desktop test saves to disk, quits, starts again with empty app storage, opens the file and gets an identical export. It also checks that a failed save leaves the existing file unchanged.
 - Both check that the app makes no network requests beyond its own files.
 - Fonts, in the browser: a Google font, a font file the person adds, and a font installed on the machine each give a byte-for-byte identical export after saving and reopening in a browser profile with empty storage. A design whose font is not available shows the missing-font warning and export refuses until told to continue. A font that forbids embedding is never written into a project file. Opening the list contacts nobody; a failed or cancelled download changes nothing.
 - Fonts, in the desktop app: the security policy lets a Google font download and blocks every other host; only the installed-fonts permission is granted; a project with a downloaded font reopens from the file alone with Google unreachable.
 - In those tests Google's two hosts are answered by the test with real, openly licensed font files. Against the real service, by hand in the running app: Lobster (5 files) and Noto Sans JP (124 files, 5.2 MB, 1.3 seconds).
+- Upscaling, in the browser and in the desktop app, with a stand-in model that the real runtime runs in the real worker: upscale, compare, discard, keep (one undo step), undo and redo, save, and reopen with empty storage and no network give a byte-for-byte identical export, without recomputing. The enlarged copy was checked pixel by pixel against what the stand-in must produce. Turning it off gives an export identical to the one made before upscaling. Cancelling during the download and while the worker is starting changes nothing. With no connection, the plain resize is offered and stays labelled. A missing enlarged copy is reported and the original is used.
+- Upscaling with the real model, run in the desktop app on this machine (Apple M1 Pro): a 1280 × 720 photo made 4 times larger took 5.4 to 5.8 seconds on the graphics card (7.3 seconds the first time, including the download) and about 150 seconds on the processor alone. Peak memory for the whole app was between 0.9 and 1.3 GB. Details are in [research/upscaling.md](research/upscaling.md).
 
 Not verified:
 
@@ -195,12 +214,17 @@ Not verified:
 - **The browser's own permission question** for installed fonts. The tests grant the permission in advance, so the prompt itself was not clicked through.
 - **Including an installed font in a project** is tested with a stand-in for the system's font list, not with a real installed font end to end.
 - **Text in Chinese, Japanese or Korean** was not typed and exported.
+- **Upscale quality on real photographs.** Only a synthetic test picture was looked at. Faces, hair, skin, foliage and screenshots with small text were not tried.
+- **Upscaling on other graphics cards, on Windows or Linux, or in Firefox or Safari.**
+- **Cancelling in the middle of the tiles** of a long run is not covered by an automated test (the stand-in model is too fast); cancelling earlier in the same code path is.
+- **Memory after many upscales in one sitting.** It did not return to its starting level between runs; whether that is a leak was not established.
 
 ## Not built yet
 
 From the brief, in rough order of value:
 
 - Photo adjustments (exposure, temperature, contrast and so on), with before/after.
+- More for upscaling: several processor threads for computers without a usable graphics card (tried, and the runtime failed to start), a smaller fallback model once its licence is settled, a face model, and choosing which part of the photo the before and after view shows.
 - Subject cutouts with editable masks. Model candidates and licences are in the research document.
 - Thumbnail workflow: small-size preview, feed mockups, variants and batch export.
 - Snapping and alignment guides.

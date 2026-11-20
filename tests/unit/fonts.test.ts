@@ -52,7 +52,9 @@ describe('document format 2: fonts', () => {
     expect(doc.fonts).toEqual([]);
     const { schemaVersion: _old, ...before } = v1;
     const { schemaVersion: _new, fonts: _fonts, ...after } = doc;
-    expect(after).toEqual(before);
+    // Later formats add one field to photo layers (see upscale.test.ts); nothing else differs.
+    const withoutLaterFields = { ...after, pages: after.pages.map((page) => ({ ...page, nodes: (page.nodes as unknown as Record<string, unknown>[]).map(({ upscale: _upscale, ...node }) => node) })) };
+    expect(withoutLaterFields).toEqual(before);
     // The fixture itself is not touched, and upgrading twice gives the same result.
     expect(v1.schemaVersion).toBe(1);
     expect(parseDocument(doc).doc).toEqual(doc);

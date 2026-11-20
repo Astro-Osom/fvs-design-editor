@@ -1,7 +1,8 @@
 import { StaticCanvas } from 'fabric';
-import { nodeLabel } from '../document/ops';
+import { imageStretch, nodeLabel } from '../document/ops';
 import type { AssetId, DesignDocument, FontUse, Page } from '../document/types';
 import { loadFontsForDocument } from './fonts';
+import { relativeTo } from './imageCache';
 import type { DecodedImage, ImageCache } from './imageCache';
 import { createImageObject, createMissingImageObject, createTextObject, textLines } from './nodeFactory';
 import type { Textbox } from 'fabric';
@@ -112,14 +113,27 @@ export async function exportPage(
   }
   throwIfCancelled(options.signal);
 
-  // 2. Originals, one at a time to keep peak memory down.
-  const sources = new Map<AssetId, DecodedImage | null>();
+  // 2. Originals (or a photo's enlarged copy), one at a time to keep peak memory down.
+  const decoded = new Map<AssetId, DecodedImage | null>();
+  const decode = async (id: AssetId) => {
+    if (!decoded.has(id)) decoded.set(id, options.usePreviews ? await images.getPreview(id) : await images.getFull(id));
+    return decoded.get(id) ?? null;
+  };
+  const sources = new Map<string, DecodedImage | null>();
+  const lostEnlargements = new Set<string>();
   for (const node of visible) {
-    if (node.type !== 'image' || sources.has(node.assetId)) continue;
-    sources.set(node.assetId, options.usePreviews ? await images.getPreview(node.assetId) : await images.getFull(node.assetId));
+    if (node.type !== 'image') continue;
+    const original = doc.assets[node.assetId];
+    let source: DecodedImage | null = null;
+    if (node.upscale && original) {
+      const enlarged = await decode(node.upscale.assetId);
+      if (enlarged) source = relativeTo(enlarged, original.width, original.height);
+      else lostEnlargements.add(node.id);
+    }
+    sources.set(node.id, source ?? (await decode(node.assetId)));
     throwIfCancelled(options.signal);
   }
-  const missingAssets = [...sources.entries()].filter(([, source]) => !source).map(([id]) => id);
+  const missingAssets = [...new Set(visible.flatMap((node) => (node.type === 'image' && !sources.get(node.id) ? [node.assetId] : [])))];
   if (missingAssets.length && !options.allowProblems) {
     throw new ExportError(
       missingAssets.length === 1 ? 'One image is missing, so the export would be incomplete.' : `${missingAssets.length} images are missing, so the export would be incomplete.`,
@@ -145,15 +159,20 @@ export async function exportPage(
     canvas.setViewportTransform([scale, 0, 0, scale, 0, 0]);
     for (const node of visible) {
       if (node.type === 'image') {
-        const source = sources.get(node.assetId);
+        const source = sources.get(node.id);
         if (!source) {
           canvas.add(createMissingImageObject(node));
           continue;
         }
-        const enlargement = (node.width * scale) / node.crop.width;
-        if (!options.usePreviews && enlargement > 1.5) {
+        // An enlarged copy counts: what matters is the pixels the photo is actually drawn from.
+        const lost = lostEnlargements.has(node.id);
+        if (lost) warnings.push(`The enlarged copy of "${nodeLabel(node)}" is missing, so its original was used.`);
+        const stretch = imageStretch(lost ? { ...node, upscale: null } : node, scale);
+        if (!options.usePreviews && stretch > 150) {
           warnings.push(
-            `"${nodeLabel(node)}" is stretched to ${Math.round(enlargement * 100)}% of its original resolution and may look soft.`,
+            node.upscale && !lost
+              ? `"${nodeLabel(node)}" is stretched to ${Math.round(stretch)}% of its enlarged resolution and may look soft.`
+              : `"${nodeLabel(node)}" is stretched to ${Math.round(stretch)}% of its original resolution and may look soft. Upscale the photo to sharpen it.`,
           );
         }
         canvas.add(createImageObject(node, source));

@@ -29,6 +29,7 @@ function imageNode(patch: Partial<ImageNode> = {}): ImageNode {
     crop: { x: 0, y: 0, width: 2000, height: 1000 },
     flipX: false,
     flipY: false,
+    upscale: null,
     ...patch,
   };
 }

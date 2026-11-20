@@ -9,6 +9,7 @@ An open-source, local-first design editor for photo editing and YouTube thumbnai
 ## What works today
 
 - **Photos:** upload, drop or paste. Originals are never altered; cropping only changes which part is shown, so it can always be changed back.
+- **Upscale:** make a larger, sharper copy of a low-resolution photo so it holds up at 4K. It is worked out on your own computer, shown beside the original before you accept it, and can be turned off again. See [Upscaling photos](#upscaling-photos).
 - **Text:** type directly on the page, with font, size, weight, colour, outline, alignment and spacing.
 - **Fonts:** five are built in, so text works offline. Beyond those, a searchable font menu offers about 1,960 Google Fonts families (each downloaded the first time you use it, then kept on your computer), the fonts installed on your computer, and font files you add. See [Fonts](#fonts).
 - **Layers:** show, hide, lock, rename and reorder, with exact position, size and rotation.
@@ -30,6 +31,21 @@ If a design is opened on a computer that does not have one of its fonts, the edi
 Listing installed fonts works in Chrome, Edge and the desktop app, when you ask for it under "This computer" in the font menu. Firefox and Safari cannot list them; add the font file instead. The first listing can take up to a minute on a computer with many fonts, and the desktop app waits for it to finish before it can quit.
 
 The only time the editor contacts another server is when you pick a Google font (or turn on previews of Google fonts): it downloads from `fonts.googleapis.com` and `fonts.gstatic.com`. The list of Google families ships with the app; refresh it with `pnpm fonts:catalogue`. Licences and sources are in [docs/research/fonts.md](docs/research/fonts.md).
+
+## Upscaling photos
+
+![The Upscale dialog comparing a photo before and after](docs/screenshots/upscale.png)
+
+Select a photo and press **Upscale**. The button stands out when the photo is stretched beyond its own resolution on the page, and the export dialog warns about the same thing.
+
+- You choose 2 times or 4 times larger; the editor suggests the one that keeps the photo sharp at 4K.
+- The first time, a 4.9 MB helper (the Real-ESRGAN "general x4 v3" model, BSD-3-Clause) is downloaded from `huggingface.co`, checked against a known fingerprint, and kept on your computer. After that Upscale works with no internet. The file is not part of this repository or the app.
+- Nothing is uploaded. The work runs on your graphics card where the browser supports it, and on the processor otherwise.
+- You see before and after side by side, then keep or discard the result. Keeping it is one undo step. Your original stays in the project, and "Turn off and use the original" brings it back exactly.
+- The enlarged copy is saved inside the project file, so reopening never recomputes it.
+- If the helper cannot be downloaded or cannot run, a plain resize is offered instead, and it is labelled as adding no new detail.
+
+How long it takes, measured on one Apple M1 Pro laptop for a 1280 × 720 photo made 4 times larger: about 5.5 seconds on the graphics card, and about 2.5 minutes on the processor alone. Slower computers will take longer. Models considered, licences and the full measurements are in [docs/research/upscaling.md](docs/research/upscaling.md).
 
 ## Run it
 
@@ -53,13 +69,13 @@ pnpm desktop
 
 ## Tests
 
-Unit tests for the document model, undo history, storage, fonts and project files:
+Unit tests for the document model, undo history, storage, fonts, upscaling and project files:
 
 ```bash
 pnpm test
 ```
 
-End-to-end tests in a real browser and in the desktop app. They run the whole flow (import, edit, crop, undo, save, reopen, export) and check that the exported image is byte-for-byte the same before saving and after reopening. The font tests never contact Google: they answer its two hosts with openly licensed fonts from `node_modules`. One of them lists the fonts installed on the machine, which can take up to a minute.
+End-to-end tests in a real browser and in the desktop app. They run the whole flow (import, edit, crop, undo, save, reopen, export) and check that the exported image is byte-for-byte the same before saving and after reopening. The font tests never contact Google: they answer its two hosts with openly licensed fonts from `node_modules`. One of them lists the fonts installed on the machine, which can take up to a minute. The upscale tests never download the real model: they use a 316-byte stand-in model (`tests/fixtures/nearest-x4-stub.onnx`) that the real runtime runs in the real worker.
 
 ```bash
 pnpm test:e2e
@@ -97,7 +113,7 @@ ELECTRON_DISABLE_SANDBOX=1
 
 `DESKTOP_SHELL` accepts `auto`, `electron`, `tauri`, `both` or `none` and controls which desktop build dependencies the setup script installs. The project uses Electron, so `auto` or `electron` is right.
 
-The font hosts `fonts.googleapis.com` and `fonts.gstatic.com` are on the default allowed list, so downloading Google fonts works in cloud sessions without adding anything.
+The font hosts `fonts.googleapis.com` and `fonts.gstatic.com` are on the default allowed list, so downloading Google fonts works in cloud sessions without adding anything. The Upscale model comes from `huggingface.co` and `*.hf.co`, which are in the list above.
 
 **Secrets:** none. The app has no backend, so no keys are needed. Do not put credentials in environment variables; everyone who uses the environment can read them.
 
@@ -111,4 +127,4 @@ Issues and pull requests are welcome. The project is early, so please open an is
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Third-party work the app ships or downloads is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

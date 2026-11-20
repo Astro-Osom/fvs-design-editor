@@ -36,6 +36,10 @@ export async function exportPng(app: ElectronApplication, page: Page, target: st
   const dialog = page.getByTestId('export-dialog');
   await dialog.getByRole('button', { name: '3840 × 2160' }).click();
   await page.getByTestId('export-confirm').click();
+  // The dialog closes itself, unless it has a note to show (then its button says Done).
+  const done = dialog.getByRole('button', { name: 'Done' });
+  await expect(async () => expect((await dialog.isHidden()) || (await done.isVisible())).toBe(true)).toPass();
+  if (await done.isVisible()) await done.click();
   await expect(dialog).toBeHidden();
   return fs.readFile(target);
 }

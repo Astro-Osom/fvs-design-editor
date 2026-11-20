@@ -8,6 +8,10 @@ export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
   build: { target: 'es2022', sourcemap: true },
+  // The photo-enlarging worker is an ES module (it imports the ONNX runtime).
+  worker: { format: 'es' },
+  // Leave the ONNX runtime as it ships, so it finds its WebAssembly file next to itself in development too.
+  optimizeDeps: { exclude: ['onnxruntime-web'] },
   test: {
     include: ['tests/unit/**/*.test.ts'],
     environment: 'node',

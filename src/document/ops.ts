@@ -8,6 +8,7 @@ import {
   type FontUse,
   type FontUseRecord,
   type ImageNode,
+  type ImageUpscale,
   type NodeId,
   type Page,
   type TextNode,
@@ -216,7 +217,12 @@ export function insertNodes(
 export function usedAssetIds(doc: DesignDocument): Set<AssetId> {
   const used = new Set<AssetId>();
   for (const page of doc.pages) {
-    for (const node of page.nodes) if (node.type === 'image') used.add(node.assetId);
+    for (const node of page.nodes) {
+      if (node.type !== 'image') continue;
+      used.add(node.assetId);
+      // The enlarged copy a photo draws from is part of the design too.
+      if (node.upscale) used.add(node.upscale.assetId);
+    }
   }
   return used;
 }
@@ -342,7 +348,52 @@ export function makeImageNode(asset: AssetInfo, page: Pick<Page, 'width' | 'heig
     crop: { x: 0, y: 0, width: asset.width, height: asset.height },
     flipX: false,
     flipY: false,
+    upscale: null,
   };
+}
+
+// ----------------------------------------------------------------- upscale
+
+/** The asset a photo layer is actually drawn from: its enlarged copy if it has one, else the original. */
+export function imageSourceId(node: ImageNode): AssetId {
+  return node.upscale?.assetId ?? node.assetId;
+}
+
+/**
+ * How many pixels of image data there are for each page pixel a photo covers,
+ * as a percentage stretch: 100 means one image pixel per page pixel, 300 means
+ * each image pixel is spread over three. `pageScale` is output pixels per page
+ * pixel (1 on the page itself, 3 when a 1280 page is exported at 3840).
+ */
+export function imageStretch(node: ImageNode, pageScale = 1): number {
+  const factor = node.upscale?.factor ?? 1;
+  return ((node.width * pageScale) / (node.crop.width * factor)) * 100;
+}
+
+/**
+ * An enlarged copy of this original, made the same way, that the design already
+ * holds. Enlarging the same photo twice reuses it instead of computing it again.
+ */
+export function findDerivedAsset(doc: DesignDocument, assetId: AssetId, method: ImageUpscale['method'], factor: number): AssetInfo | undefined {
+  return Object.values(doc.assets).find(
+    (asset) => asset.derivedFrom?.assetId === assetId && asset.derivedFrom.method === method && asset.derivedFrom.factor === factor,
+  );
+}
+
+/**
+ * Draw a photo from an enlarged copy (`derived`, which records how it was made),
+ * or from its original again (`null`). The original, the crop and the frame are
+ * untouched either way.
+ */
+export function setImageUpscale(doc: DesignDocument, id: NodeId, derived: AssetInfo | null): DesignDocument {
+  const found = findNode(doc, id);
+  if (!found || found.node.type !== 'image') return doc;
+  if (!derived) return found.node.upscale ? updateNode(doc, id, { upscale: null }) : doc;
+  const from = derived.derivedFrom;
+  if (!from || from.assetId !== found.node.assetId) return doc;
+  const current = found.node.upscale;
+  if (current && current.assetId === derived.id) return doc;
+  return updateNode(addAsset(doc, derived), id, { upscale: { assetId: derived.id, method: from.method, factor: from.factor } });
 }
 
 export type TextPreset = 'heading' | 'subheading' | 'body' | 'headline';

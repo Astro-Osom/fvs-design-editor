@@ -441,7 +441,8 @@ export function copySelection(): boolean {
   const doc = currentDoc();
   clipboard = {
     nodes: structuredClone(nodes),
-    assets: nodes.flatMap((n) => (n.type === 'image' && doc.assets[n.assetId] ? [doc.assets[n.assetId]!] : [])),
+    // A photo brings its original and, if it has one, its enlarged copy.
+    assets: nodes.flatMap((n) => (n.type === 'image' ? [n.assetId, n.upscale?.assetId] : [])).flatMap((id) => (id && doc.assets[id] ? [doc.assets[id]!] : [])),
     // Text keeps its font when pasted into another design.
     fonts: [...new Set(nodes.flatMap((n) => (n.type === 'text' ? [n.fontFamily] : [])))].flatMap((family) => documentFont(doc, family) ?? []),
   };
