@@ -1,0 +1,125 @@
+{
+  "fabric": {
+    "version": "7.4.0",
+    "dpr": 2,
+    "croppedImage": {
+      "cropX": 200,
+      "cropY": 150,
+      "w": 400,
+      "h": 300
+    },
+    "clipPath": true,
+    "shadow": true,
+    "group": {
+      "children": 2,
+      "angle": 15
+    },
+    "perRangeStyles": true,
+    "linesBeforeEdit": [
+      "Hello styled world,",
+      "this line is long",
+      "enough that it must",
+      "wrap"
+    ],
+    "isEditing": true,
+    "textAfterTyping": "Hello styled world, this line is long enough that it must wrap OK!",
+    "linesAfterEdit": [
+      "Hello styled world,",
+      "this line is long",
+      "enough that it must",
+      "wrap OK!"
+    ],
+    "editorBackingStore": [
+      2560,
+      1440
+    ],
+    "exportFromEditor": {
+      "size": [
+        3840,
+        2160
+      ],
+      "ms": 15,
+      "hash": "c430f7dc"
+    },
+    "exportWhileZoomed": {
+      "size": [
+        3840,
+        2160
+      ],
+      "sameAsUnzoomed": false
+    },
+    "jsonBytes": 23914,
+    "jsonEmbedsImageAsDataUrl": true,
+    "reopenedExport": {
+      "size": [
+        3840,
+        2160
+      ],
+      "identicalPixels": true
+    },
+    "linesAfterReopen": [
+      "Hello styled world,",
+      "this line is long",
+      "enough that it must",
+      "wrap OK!"
+    ],
+    "linesStable": true,
+    "cornerPixel": [
+      29,
+      53,
+      87,
+      255
+    ],
+    "centrePixelOpaque": true
+  },
+  "konva": {
+    "version": "10.10.0",
+    "dpr": 2,
+    "croppedImage": {
+      "x": 200,
+      "y": 150,
+      "width": 400,
+      "height": 300
+    },
+    "clipPath": "containers only (Group clipFunc)",
+    "shadow": true,
+    "group": {
+      "children": 2,
+      "angle": 15
+    },
+    "perRangeStyles": false,
+    "builtInTextEditing": false,
+    "lines": [
+      "Hello styled world,",
+      "this line is long",
+      "enough that it must",
+      "wrap"
+    ],
+    "exportFromEditor": {
+      "size": [
+        3840,
+        2160
+      ],
+      "ms": 11,
+      "hash": "3b0429ff"
+    },
+    "exportWhileZoomed": {
+      "size": [
+        3840,
+        2160
+      ],
+      "sameAsUnzoomed": false
+    },
+    "jsonBytes": 965,
+    "jsonContainsImageData": false,
+    "jsonContainsClipFunc": false,
+    "reopenedExport": {
+      "size": [
+        3840,
+        2160
+      ],
+      "identicalPixels": false
+    },
+    "linesStable": true
+  }
+}
