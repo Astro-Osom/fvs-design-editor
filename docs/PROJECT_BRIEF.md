@@ -135,14 +135,15 @@ Create a smooth, fast, intuitive personal design tool that feels familiar to Can
 6. Test the core workflow with networking disabled.
 
 ## UI Requirements
-The interface must be elegant, smooth and easy to use. Match the layout and interaction conventions of Adobe Photoshop, but make it simpler and more user-friendly. This section replaces the earlier "Canva-like information architecture" wording wherever the two conflict.
+The interface must be elegant, smooth, easy to use and very beginner-friendly, while producing professional results. Take what is simplest about Canva and what is simplest about Photoshop, and blend the two. This section replaces the earlier "Canva-like information architecture" wording wherever the two conflict.
 
-- **Layout:** a tools panel on the left, a contextual options bar across the top, the canvas in the centre, and docked panels on the right (Layers, Properties and Adjustments, History). Use a dark neutral theme by default so the artwork stands out, with a light theme available.
-- **Small tool set:** Move/Select, Crop, Text, Shape, Brush and Eraser (for masks), Hand and Zoom. Only ship tools that work.
-- **Familiar shortcuts:** follow the conventions people already know, such as V move, T text, C crop, B brush, E eraser, H hand, Z zoom, Space-drag to pan, [ and ] for brush size, Cmd/Ctrl+Z undo and Cmd/Ctrl+J duplicate.
-- **Simpler than Photoshop:** no nested tool flyouts, no modal dialogs for common adjustments, plain-language labels, sensible defaults, advanced controls tucked behind progressive disclosure, tooltips that show the shortcut, clear empty states, and one obvious way to do each common task.
-- **Thumbnail work stays close:** presets, the small-size preview and variants are one click away.
-- **Original visual design:** match the familiar structure and behaviour, not the look. Use our own icons, colours and names. Do not copy Adobe's icons, artwork, logos, product names or exact styling.
+- **From Canva, the ease of adding and styling:** a labelled left rail whose panels add things with one click (photos, text presets, later shapes). There are no tool modes to learn: clicking selects and dragging moves. A contextual toolbar above the canvas shows only the controls that apply to the current selection. Presets and plain-language labels do most of the work.
+- **From Photoshop, the control and precision:** a Layers panel with show, hide, lock and reorder; exact numeric position, size and rotation; nondestructive crop and adjustments; a History list; and the shortcuts people already know, such as Cmd/Ctrl+Z undo, Cmd/Ctrl+J duplicate, T text, C crop, Space-drag to pan and arrow keys to nudge.
+- **Layout:** the left rail and its panel, the contextual toolbar across the top, the canvas in the centre, and Layers and Position on the right. Use a calm dark neutral theme by default so the artwork stands out, with a light theme available.
+- **Beginner-friendly:** every control has a visible label or a tooltip that shows its shortcut. An empty canvas shows clear first steps, such as "Add a photo" and "Add text". Defaults are sensible, advanced options sit behind "More", undo is always visible, and wording avoids jargon (say "Outline", not "Stroke").
+- **Professional outcomes:** exact export sizes, originals always preserved, precise alignment and numeric control, and accurate text.
+- **Thumbnail work stays close:** size presets, the small-size preview and variants are one click away.
+- **Original visual design:** borrow the familiar structure and behaviour, not the look. Use our own icons, colours and names. Do not copy Adobe's or Canva's icons, artwork, logos, product names or exact styling.
 - **Polish:** clean typography, subtle motion, reduced-motion support, and no placeholder controls for unsupported features.
 
 Begin by proposing the architecture and the vertical-slice plan (after the open-source research), then implement. Ask only blocking questions.
