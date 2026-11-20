@@ -3,6 +3,7 @@ import {
   addAsset,
   addNode,
   createDocument,
+  documentFont,
   duplicateNodes,
   findNode,
   firstPage,
@@ -22,16 +23,15 @@ import {
   type TextPreset,
 } from '../document/ops';
 import { parseDocument } from '../document/schema';
-import type { AssetInfo, DesignDocument, DesignNode, NodeId } from '../document/types';
+import type { AssetInfo, DesignDocument, DesignNode, DocumentFont, NodeId } from '../document/types';
 import { openProjectFile, pickFiles, platformKind, saveExportFile, saveProjectFile } from '../platform/files';
 import { exportPage, type ExportOptions, type ExportResult } from '../render/exportPage';
-import { findBundledFont, nearestWeight } from '../render/fonts';
 import { decodeImage, SUPPORTED_IMAGE_TYPES } from '../render/imageCache';
 import { isQuotaError } from '../storage/idb';
 import { packProject, projectFileName, unpackProject } from '../storage/projectFile';
 import { getProject } from '../storage/projectsDb';
 import { claimProject, flushAutosave, noteSavedToFile, releaseProject, resetAutosave } from './autosave';
-import { APP_VERSION, assets, editorRef, images } from './services';
+import { APP_VERSION, assets, editorRef, fonts, images } from './services';
 import {
   closeDocumentInStore,
   commitDoc,
@@ -78,6 +78,10 @@ export async function loadProjectBytes(bytes: Uint8Array, file: ProjectFile): Pr
     for (const asset of opened.assets) {
       if (!(await assets.has(asset.id))) await assets.put(asset);
     }
+    for (const file of opened.fontFiles) {
+      if (!(await fonts.hasFile(file.id))) await fonts.putFile(file);
+    }
+    await rememberOpenFonts(opened.doc);
     const problems = [...opened.missingAssets, ...opened.corruptAssets];
     resetAutosave(opened.manifest.savedAt ?? null);
     images.clear();
@@ -95,6 +99,27 @@ export async function loadProjectBytes(bytes: Uint8Array, file: ProjectFile): Pr
   } catch (error) {
     showToast('error', isQuotaError(error) ? 'Browser storage is full, so this project could not be opened.' : messageOf(error));
     return false;
+  }
+}
+
+/**
+ * Openly licensed fonts that arrive inside a project become available to other
+ * designs on this machine too, as if they had been downloaded here.
+ */
+async function rememberOpenFonts(doc: DesignDocument): Promise<void> {
+  for (const font of doc.fonts) {
+    if (font.source !== 'google' || (await fonts.getFamily(font.family))) continue;
+    const present = await Promise.all(font.files.map((file) => fonts.hasFile(file.id)));
+    if (!present.every(Boolean)) continue;
+    await fonts.putFamily({
+      family: font.family,
+      source: 'google',
+      ...(font.license ? { license: font.license } : {}),
+      embeddable: true,
+      files: font.files,
+      faces: font.faces,
+      addedAt: new Date().toISOString(),
+    });
   }
 }
 
@@ -150,13 +175,20 @@ export async function saveProject(saveAs = false): Promise<boolean> {
   if (!doc) return false;
   store.setState({ busy: 'Saving…' });
   try {
-    const packed = await packProject({ doc, getAsset: (id) => assets.get(id), appVersion: APP_VERSION });
+    const packed = await packProject({
+      doc,
+      getAsset: (id) => assets.get(id),
+      getFontFile: (id) => fonts.getFile(id),
+      appVersion: APP_VERSION,
+    });
     const file = await saveProjectFile(packed.bytes, projectFileName(doc.name), state.file, saveAs);
     if (!file) return false;
     noteSavedToFile();
     store.setState({ file, savedDoc: doc });
     if (packed.missingAssets.length) {
       showToast('error', `Saved, but ${packed.missingAssets.length === 1 ? 'one image is' : `${packed.missingAssets.length} images are`} missing and could not be included.`);
+    } else if (packed.missingFonts.length) {
+      showToast('error', `Saved, but the font ${packed.missingFonts.join(', ')} is missing from this computer and could not be included.`);
     } else if (platformKind() === 'browser-downloads') {
       showToast('success', `Downloaded ${file.name}. Keep this file: it is your copy of the project.`);
     } else {
@@ -350,22 +382,6 @@ export function flipSelection(axis: 'x' | 'y'): void {
   );
 }
 
-/** Change font family, moving to the nearest weight and style the new family really has. */
-export function setFontFamily(family: string): void {
-  const font = findBundledFont(family);
-  updateSelection(
-    (node) =>
-      node.type === 'text'
-        ? {
-            fontFamily: family,
-            fontWeight: nearestWeight(family, node.fontWeight),
-            fontStyle: font && !font.italic ? 'normal' : node.fontStyle,
-          }
-        : {},
-    'Change font',
-  );
-}
-
 export function selectAll(): void {
   const doc = selectDoc(store.getState());
   if (!doc) return;
@@ -415,7 +431,7 @@ export function setPageBackground(background: string | null, liveKey?: string): 
 
 // --------------------------------------------------------------- clipboard
 
-let clipboard: { nodes: DesignNode[]; assets: AssetInfo[] } | null = null;
+let clipboard: { nodes: DesignNode[]; assets: AssetInfo[]; fonts: DocumentFont[] } | null = null;
 let pasteCount = 0;
 
 /** Copy the selected layers. They stay fully editable when pasted. */
@@ -426,6 +442,8 @@ export function copySelection(): boolean {
   clipboard = {
     nodes: structuredClone(nodes),
     assets: nodes.flatMap((n) => (n.type === 'image' && doc.assets[n.assetId] ? [doc.assets[n.assetId]!] : [])),
+    // Text keeps its font when pasted into another design.
+    fonts: [...new Set(nodes.flatMap((n) => (n.type === 'text' ? [n.fontFamily] : [])))].flatMap((family) => documentFont(doc, family) ?? []),
   };
   pasteCount = 0;
   return true;
@@ -445,8 +463,8 @@ export function pasteClipboard(): void {
   pasteCount++;
   const offset = 24 * pasteCount;
   const nodes = clipboard.nodes.map((node) => ({ ...structuredClone(node), id: newId(node.type), x: node.x + offset, y: node.y + offset }));
-  const { assets: clipboardAssets } = clipboard;
-  apply(nodes.length > 1 ? `Paste ${nodes.length} layers` : 'Paste', (doc) => insertNodes(doc, nodes, clipboardAssets));
+  const { assets: clipboardAssets, fonts: clipboardFonts } = clipboard;
+  apply(nodes.length > 1 ? `Paste ${nodes.length} layers` : 'Paste', (doc) => insertNodes(doc, nodes, clipboardAssets, clipboardFonts));
   setSelection(nodes.map((n) => n.id));
 }
 

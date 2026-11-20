@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, session, shell } from 'electron';
 import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -20,13 +20,16 @@ protocol.registerSchemesAsPrivileged([
   { scheme: APP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
+// The page may only load its own files. The single exception is Google Fonts: when
+// the person picks a Google font, its stylesheet and files are fetched from Google's
+// two font hosts (see src/fonts/googleDownload.ts). Nothing else can be contacted.
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -111,6 +114,22 @@ function registerFileHandlers(): void {
   });
 }
 
+/**
+ * Browser permissions. Electron grants every permission by default; the editor
+ * needs exactly one: listing the fonts installed on the computer, which the
+ * person asks for from the font menu. Everything else (camera, location,
+ * notifications and so on) is refused.
+ */
+const ALLOWED_PERMISSIONS = new Set(['local-fonts']);
+
+function restrictPermissions(): void {
+  const fromApp = (url: string | undefined) => !!url && url.startsWith(`${APP_SCHEME}://${APP_HOST}/`);
+  session.defaultSession.setPermissionCheckHandler((_contents, permission, origin) => ALLOWED_PERMISSIONS.has(permission) && fromApp(`${origin}/`));
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => {
+    callback(ALLOWED_PERMISSIONS.has(permission) && fromApp(contents.getURL()));
+  });
+}
+
 function createWindow(): void {
   const window = new BrowserWindow({
     width: 1440,
@@ -140,6 +159,7 @@ function createWindow(): void {
 void app.whenReady().then(() => {
   registerAppProtocol();
   registerFileHandlers();
+  restrictPermissions();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

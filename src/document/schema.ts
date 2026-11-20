@@ -90,6 +90,32 @@ const assetSchema = z.object({
   name: z.string(),
 });
 
+const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'must be a SHA-256 hex digest');
+
+const fontFileSchema = z.object({
+  id: sha256,
+  bytes: nonNegative,
+  format: z.enum(['woff2', 'woff', 'ttf', 'otf']),
+  unicodeRange: z.string().optional(),
+});
+
+const fontFaceSchema = z.object({
+  weight: z.number().int().min(1).max(1000),
+  style: z.enum(['normal', 'italic']),
+  files: z.array(z.number().int().min(0)),
+  localName: z.string().min(1).optional(),
+});
+
+const documentFontSchema = z.object({
+  family: z.string().min(1),
+  source: z.enum(['google', 'installed', 'file']),
+  license: z.string().optional(),
+  embeddable: z.boolean(),
+  embed: z.boolean(),
+  files: z.array(fontFileSchema),
+  faces: z.array(fontFaceSchema),
+});
+
 const documentSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   id: z.string().min(1),
@@ -97,6 +123,7 @@ const documentSchema = z.object({
   createdAt: z.string(),
   pages: z.array(pageSchema).min(1),
   assets: z.record(z.string(), assetSchema),
+  fonts: z.array(documentFontSchema),
 });
 
 export class DocumentError extends Error {
@@ -113,12 +140,15 @@ export class DocumentError extends Error {
 export type Migration = (doc: Record<string, unknown>) => Record<string, unknown>;
 
 /**
- * Migrations keyed by the version they upgrade FROM.
- * Version 1 is the first released schema, so there are none yet. When the schema
- * changes: bump SCHEMA_VERSION, add `[oldVersion]: (doc) => ...` here, and add a
- * fixture of the old format to the tests.
+ * Migrations keyed by the version they upgrade FROM. When the schema changes:
+ * bump SCHEMA_VERSION, add `[oldVersion]: (doc) => ...` here, and add a fixture
+ * of the old format to the tests (see tests/fixtures).
  */
-export const MIGRATIONS: Record<number, Migration> = {};
+export const MIGRATIONS: Record<number, Migration> = {
+  // 1 -> 2: documents list the fonts they use beyond the built-in ones.
+  // Version 1 could only use built-in fonts, so the list starts empty.
+  1: (doc) => ({ ...doc, schemaVersion: 2, fonts: [] }),
+};
 
 /** Bring a raw document up to `targetVersion` by running each migration in order. */
 export function migrate(
@@ -182,6 +212,21 @@ export function parseDocument(raw: unknown): { doc: DesignDocument; migratedFrom
   for (const [key, asset] of Object.entries(doc.assets)) {
     if (key !== asset.id) {
       throw new DocumentError('The design file is damaged (an image is listed under the wrong id).', 'invalid');
+    }
+  }
+  const families = new Set<string>();
+  for (const font of doc.fonts) {
+    if (families.has(font.family)) {
+      throw new DocumentError(`The design file is damaged (the font ${font.family} is listed twice).`, 'invalid');
+    }
+    families.add(font.family);
+    if (font.embed && !font.embeddable) {
+      throw new DocumentError(`The design file is damaged (the font ${font.family} is marked to be included but may not be).`, 'invalid');
+    }
+    for (const face of font.faces) {
+      if (face.files.some((index) => index >= font.files.length)) {
+        throw new DocumentError(`The design file is damaged (the font ${font.family} refers to a file that is not listed).`, 'invalid');
+      }
     }
   }
   return { doc, migratedFrom };

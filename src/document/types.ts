@@ -13,7 +13,7 @@
  *   In matrix terms: page = translate(x, y) * rotate(rotation) * local.
  */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type NodeId = string;
 export type AssetId = string;
@@ -114,6 +114,55 @@ export interface AssetInfo {
   name: string;
 }
 
+/**
+ * Where a font that is not built into the editor came from.
+ * - google: downloaded from Google Fonts (openly licensed).
+ * - installed: a font installed on the computer the design was made on.
+ * - file: a font file the person added.
+ */
+export type FontSource = 'google' | 'installed' | 'file';
+
+export type FontFormat = 'woff2' | 'woff' | 'ttf' | 'otf';
+
+/** One font file. Like an image asset, it is identified by the SHA-256 of its bytes. */
+export interface FontFileRef {
+  id: string;
+  bytes: number;
+  format: FontFormat;
+  /** The characters this file covers (a CSS unicode-range), when a family is split by script. */
+  unicodeRange?: string;
+}
+
+/** One style of a family, e.g. bold italic. */
+export interface FontFaceRecord {
+  weight: number;
+  style: 'normal' | 'italic';
+  /** Indexes into the family's `files`. Empty when no file is stored for this face. */
+  files: number[];
+  /** Installed fonts: the name the operating system knows this exact face by (its PostScript name). */
+  localName?: string;
+}
+
+/**
+ * A font family the design uses that is not built into the editor.
+ *
+ * The exact files are pinned by hash, so the design is drawn with the same font
+ * data wherever it is opened. A family that is not listed in `fonts` is one of
+ * the editor's built-in fonts.
+ */
+export interface DocumentFont {
+  family: string;
+  source: FontSource;
+  /** Licence identifier when it is known, e.g. "OFL-1.1". */
+  license?: string;
+  /** Whether the font's licence or its own embedding permission allows putting its files in a project file. */
+  embeddable: boolean;
+  /** Whether the files are written into project files. Never true unless `embeddable`. */
+  embed: boolean;
+  files: FontFileRef[];
+  faces: FontFaceRecord[];
+}
+
 export interface DesignDocument {
   schemaVersion: typeof SCHEMA_VERSION;
   id: string;
@@ -122,11 +171,21 @@ export interface DesignDocument {
   pages: Page[];
   /** Every original asset the document refers to. */
   assets: Record<AssetId, AssetInfo>;
+  /** Fonts the design uses beyond the editor's built-in ones. One entry per family. */
+  fonts: DocumentFont[];
 }
 
-/** A font the document uses, recorded in saved projects so missing fonts can be reported. */
+/** One font face in use. */
 export interface FontUse {
   family: string;
   weight: number;
   style: 'normal' | 'italic';
+}
+
+/** A font face in use and where it comes from, as recorded in a saved project's manifest. */
+export interface FontUseRecord extends FontUse {
+  source: FontSource | 'bundled';
+  /** Whether the face's files are inside the project file. */
+  embedded: boolean;
+  license?: string;
 }

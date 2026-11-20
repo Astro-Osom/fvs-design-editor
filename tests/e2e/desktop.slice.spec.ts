@@ -1,8 +1,8 @@
-import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { answer, exportPng, launch, saveDialogCount } from './desktopHelpers';
 import { addHeadline, field, makePhoto, pngSize, setField } from './helpers';
 
 /**
@@ -10,41 +10,6 @@ import { addHeadline, field, makePhoto, pngSize, setField } from './helpers';
  * add a photo and text -> export -> save project -> quit -> start again with
  * empty app storage -> open the project file -> export again -> identical image.
  */
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-
-async function launch(userData: string): Promise<{ app: ElectronApplication; page: Page }> {
-  const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], cwd: ROOT });
-  // Native dialogs cannot be driven by a test, so they are answered here with chosen paths.
-  await app.evaluate(({ dialog }) => {
-    const answers = globalThis as unknown as { savePath?: string; openPath?: string; saveDialogs: number };
-    answers.saveDialogs = 0;
-    dialog.showSaveDialog = (async () => {
-      answers.saveDialogs++;
-      return { canceled: false, filePath: answers.savePath };
-    }) as unknown as typeof dialog.showSaveDialog;
-    dialog.showOpenDialog = (async () => ({ canceled: false, filePaths: [answers.openPath] })) as unknown as typeof dialog.showOpenDialog;
-  });
-  const page = await app.firstWindow();
-  await expect(page.getByTestId('start-screen')).toBeVisible();
-  return { app, page };
-}
-
-const answer = (app: ElectronApplication, values: { savePath?: string; openPath?: string }) =>
-  app.evaluate((_, v) => Object.assign(globalThis, v), values);
-
-const saveDialogCount = (app: ElectronApplication) =>
-  app.evaluate(() => (globalThis as unknown as { saveDialogs: number }).saveDialogs);
-
-async function exportPng(app: ElectronApplication, page: Page, target: string): Promise<Buffer> {
-  await answer(app, { savePath: target });
-  await page.getByTestId('export-button').click();
-  const dialog = page.getByTestId('export-dialog');
-  await dialog.getByRole('button', { name: '3840 × 2160' }).click();
-  await page.getByTestId('export-confirm').click();
-  await expect(dialog).toBeHidden();
-  return fs.readFile(target);
-}
 
 test('desktop: edit, export, save, quit, reopen from the file and export identically', async () => {
   const work = await fs.mkdtemp(path.join(os.tmpdir(), 'fvs-desktop-'));

@@ -19,7 +19,7 @@ import {
   round,
 } from '../document/geometry';
 import type { AssetId, DesignDocument, DesignNode, FontUse, ImageNode, NodeId, Page, Rect as RectSpec } from '../document/types';
-import { loadFontsForDocument } from './fonts';
+import { fontRequestsFor, loadFontsDetailed } from './fonts';
 import type { DecodedImage, ImageCache } from './imageCache';
 import {
   applyImageNode,
@@ -136,6 +136,7 @@ export class EditorCanvas {
   private readonly entries = new Map<NodeId, Entry>();
   private readonly pageRect: Rect;
   private page: Page | null = null;
+  private doc: DesignDocument | null = null;
   private syncToken = 0;
   private wantedSelection: NodeId[] = [];
   private quiet = 0;
@@ -205,20 +206,26 @@ export class EditorCanvas {
     const page = doc.pages[0];
     if (!page) return;
     const assetIds = [...new Set(page.nodes.flatMap((n) => (n.type === 'image' ? [n.assetId] : [])))];
-    const [missingFonts, decoded] = await Promise.all([
-      loadFontsForDocument(doc),
+    const [fonts, decoded] = await Promise.all([
+      loadFontsDetailed(doc, fontRequestsFor(doc)),
       Promise.all(assetIds.map(async (id) => [id, await this.images.getPreview(id)] as const)),
     ]);
     if (token !== this.syncToken || this.disposed) return;
+    this.doc = doc;
     const sources = new Map(decoded);
-    this.reconcile(page, sources);
+    this.reconcile(page, sources, fonts.changed);
     this.callbacks.onProblems({
-      missingFonts,
+      missingFonts: fonts.missing,
       missingAssets: assetIds.filter((id) => !sources.get(id)),
     });
   }
 
-  private reconcile(page: Page, sources: Map<AssetId, DecodedImage | null>): void {
+  /** Draw the current design again, for example after a font it uses has arrived. */
+  refresh(): void {
+    if (this.doc) void this.setDocument(this.doc);
+  }
+
+  private reconcile(page: Page, sources: Map<AssetId, DecodedImage | null>, changedFonts: ReadonlySet<string> = new Set()): void {
     const { canvas } = this;
     if (this.crop && !page.nodes.some((n) => n === this.crop!.node)) this.endCrop(false);
 
@@ -258,7 +265,8 @@ export class EditorCanvas {
         canvas.add(obj);
         entry = { obj, node, kind, source };
         this.entries.set(node.id, entry);
-      } else if (entry.node !== node) {
+      } else if (entry.node !== node || (node.type === 'text' && changedFonts.has(node.fontFamily))) {
+        // Text is laid out again when its font's data has only just arrived or changed.
         const editing = entry.obj instanceof Textbox && entry.obj.isEditing;
         if (!editing) this.applyNode(entry, node);
         entry.node = node;

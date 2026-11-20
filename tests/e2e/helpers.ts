@@ -114,6 +114,46 @@ export async function addHeadline(page: Page): Promise<void> {
   await page.getByTestId('add-text-headline').click();
 }
 
+/** Open the font menu for the selected text. */
+export async function openFontList(page: Page): Promise<Locator> {
+  const picker = page.getByTestId('font-picker');
+  if (!(await picker.isVisible())) await page.getByTestId('font-button').click();
+  await expect(picker).toBeVisible();
+  return picker;
+}
+
+export function fontOption(page: Page, family: string, group?: string): Locator {
+  return page.locator(`[data-testid="font-option"][data-family="${family}"]${group ? `[data-group="${group}"]` : ''}`);
+}
+
+/** Choose a font for the selected text through the font menu, the way a person would. */
+export async function pickFont(page: Page, family: string, group?: string): Promise<void> {
+  await openFontList(page);
+  await page.getByTestId('font-search').fill(family);
+  await fontOption(page, family, group).first().click();
+  await expect(page.getByTestId('font-button')).toHaveAttribute('data-family', family);
+  await page.getByTestId('font-search').press('Escape');
+  await expect(page.getByTestId('font-picker')).toBeHidden();
+}
+
+/** Save the project through the Save button and return the downloaded file. */
+export async function saveProjectFile(page: Page): Promise<Buffer> {
+  const saving = page.waitForEvent('download');
+  await page.getByTestId('save-button').click();
+  const bytes = await readDownload(await saving);
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'saved');
+  return bytes;
+}
+
+/** Open a project file from the start screen. */
+export async function openProjectFile(page: Page, bytes: Buffer, name = 'Untitled design.fvsdesign'): Promise<void> {
+  await expect(page.getByTestId('start-screen')).toBeVisible();
+  const opening = page.waitForEvent('filechooser');
+  await page.getByTestId('open-project').click();
+  await (await opening).setFiles({ name, mimeType: 'application/octet-stream', buffer: bytes });
+  await expect(page.getByTestId('editor')).toBeVisible();
+}
+
 export interface ExportChoice {
   /** Text of the size button, e.g. "3840 × 2160". Omit to keep the page size. */
   size?: string;

@@ -15,10 +15,10 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
-import { findNode } from '../document/ops';
+import { findNode, nearestFace } from '../document/ops';
 import { formatSize } from '../document/presets';
 import type { DesignNode, ImageNode, TextNode } from '../document/types';
-import { BUNDLED_FONTS, findBundledFont, WEIGHT_LABELS } from '../render/fonts';
+import { availableFaces, WEIGHT_LABELS } from '../render/fonts';
 import {
   applyCrop,
   cancelCrop,
@@ -26,13 +26,13 @@ import {
   duplicateSelection,
   flipSelection,
   reorderNode,
-  setFontFamily,
   startCrop,
   updateSelection,
   updateSelectionLive,
 } from '../state/actions';
 import { endGesture, selectDoc, selectPage, useEditor } from '../state/store';
 import { Button, ColorField, Divider, IconButton, Labelled, NumberField, Select, shortcut } from './controls';
+import { FontPicker } from './FontPicker';
 
 /**
  * The contextual toolbar. It shows only the controls that apply to what is
@@ -41,15 +41,20 @@ import { Button, ColorField, Divider, IconButton, Labelled, NumberField, Select,
 
 function TextControls({ node }: { node: TextNode }) {
   const [more, setMore] = useState(false);
-  const font = findBundledFont(node.fontFamily);
-  const families = BUNDLED_FONTS.map((f) => ({ value: f.family, label: f.family }));
-  // A font that is not bundled stays visible, marked as missing, rather than being swapped silently.
-  if (!font) families.unshift({ value: node.fontFamily, label: `${node.fontFamily} (missing)` });
-  const weights = (font?.weights ?? [node.fontWeight]).map((w) => ({ value: w, label: WEIGHT_LABELS[w] ?? String(w) }));
+  const doc = useEditor(selectDoc);
+  const missing = useEditor((s) => s.warnings.missingFonts.some((font) => font.family === node.fontFamily));
+  // Only weights and italics that really exist in this font are offered, so nothing is faked.
+  const faces = doc ? availableFaces(doc, node.fontFamily) : [];
+  const weightValues = [...new Set(faces.filter((face) => face.style === node.fontStyle).map((face) => face.weight))].sort((a, b) => a - b);
+  // A weight the font does not have stays visible until the person changes it.
+  if (!weightValues.includes(node.fontWeight)) weightValues.unshift(node.fontWeight);
+  const weights = weightValues.map((w) => ({ value: w, label: WEIGHT_LABELS[w] ?? String(w) }));
+  const otherStyle = node.fontStyle === 'italic' ? 'normal' : 'italic';
+  const otherFace = faces.some((face) => face.style === otherStyle) ? nearestFace(faces, node.fontWeight, otherStyle) : null;
 
   return (
     <>
-      <Select label="Font" value={node.fontFamily} options={families} onChange={setFontFamily} className="w-36" />
+      <FontPicker node={node} missing={missing} />
       <NumberField
         label="Text size"
         value={node.fontSize}
@@ -69,11 +74,12 @@ function TextControls({ node }: { node: TextNode }) {
           className="w-28"
         />
       )}
-      {font?.italic && (
+      {(otherFace || node.fontStyle === 'italic') && (
         <IconButton
           label="Italic"
           active={node.fontStyle === 'italic'}
-          onClick={() => updateSelection({ fontStyle: node.fontStyle === 'italic' ? 'normal' : 'italic' }, 'Italic')}
+          disabled={!otherFace}
+          onClick={() => otherFace && updateSelection({ fontStyle: otherFace.style, fontWeight: otherFace.weight }, 'Italic')}
         >
           <Italic size={16} />
         </IconButton>

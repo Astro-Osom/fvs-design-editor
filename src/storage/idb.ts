@@ -1,7 +1,8 @@
 /** A very small promise layer over IndexedDB. */
 
 const DB_NAME = 'fvs-design-editor';
-const DB_VERSION = 1;
+// Version 2 added the font stores.
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -29,6 +30,8 @@ export function openDatabase(): Promise<IDBDatabase> {
         const db = request.result;
         if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('fontFiles')) db.createObjectStore('fontFiles', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('fontFamilies')) db.createObjectStore('fontFamilies', { keyPath: 'family' });
       };
       request.onsuccess = () => {
         const db = request.result;

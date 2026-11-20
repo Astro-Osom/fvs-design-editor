@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SCHEMA_VERSION } from '../../src/document/types';
 import {
   addAsset,
   addNode,
@@ -42,7 +43,7 @@ function sampleDoc(): DesignDocument {
 describe('document operations', () => {
   it('creates a one-page document with stable ids', () => {
     const doc = createDocument({ width: 1280, height: 720 });
-    expect(doc.schemaVersion).toBe(1);
+    expect(doc.schemaVersion).toBe(SCHEMA_VERSION);
     expect(doc.name).toBe('Untitled design');
     expect(doc.pages).toHaveLength(1);
     expect(firstPage(doc)).toMatchObject({ width: 1280, height: 720, background: '#ffffff', nodes: [] });

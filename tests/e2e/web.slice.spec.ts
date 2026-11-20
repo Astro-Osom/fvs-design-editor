@@ -11,6 +11,7 @@ import {
   makePhoto,
   numberIn,
   pageToScreen,
+  pickFont,
   pngSize,
   readDownload,
   setField,
@@ -128,7 +129,7 @@ test('import, edit, crop, undo, save, reopen and export without any drift', asyn
 
   await layers.first().click();
   await setField(page.getByLabel('Text size'), 110);
-  await page.getByLabel('Font', { exact: true }).selectOption('Montserrat');
+  await pickFont(page, 'Montserrat');
   await page.getByLabel('Weight').selectOption('800');
   await setField(field(page, 'Rotation'), -6);
   await setField(field(page, 'Y position'), 420);

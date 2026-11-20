@@ -48,6 +48,12 @@ importers:
         specifier: 5.1.0
         version: 5.1.0(@types/react@19.3.0)(react@19.3.1)
     devDependencies:
+      '@fontsource/lobster':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/pacifico':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@playwright/test':
         specifier: 1.65.1
         version: 1.65.1
@@ -303,8 +309,14 @@ packages:
   '@fontsource/inter@5.3.0':
     resolution: {integrity: sha512-RofMylZmjlJEfELXeNHFWBRcSs75rGU/6bV2S2jfnvv/3rPXPGe0LgUJTklcHZ9lM4OZmAVFhcJPnACfb91A3g==}
 
+  '@fontsource/lobster@5.3.0':
+    resolution: {integrity: sha512-jt+RDk/8Sstl1Omhox62gTbvRSLbh06kn5BNfDFgf4rNuDPHF+19eWYFxzq5FsdkalbRJNtc5p5C3qE0+leNVg==}
+
   '@fontsource/montserrat@5.3.0':
     resolution: {integrity: sha512-iQPDtZOnmM5ih4JBGaMSXisRap0ixb9bAUw2hDtY7EjVfaqiiNlKtVuJl9XclxUwtwMMHNcWXfQR6zI9x05+Tg==}
+
+  '@fontsource/pacifico@5.3.0':
+    resolution: {integrity: sha512-bWv0fHR1n36p7scRn+maaEaVeQCOq9yvfVfjyAeUzKrK4Y/3qiRAEj4hJgfxj/sjgZZGkeHyKPrbWdDaZtpCVw==}
 
   '@fontsource/poppins@5.3.0':
     resolution: {integrity: sha512-cms1nM7U6SN8epIV1WMVOV8VsA645aSm3wHfzIQnkk188U341ThbJGSl2Sv54V29gnDbT2arMPfLzvVIIVCceQ==}
@@ -1531,7 +1543,11 @@ snapshots:
 
   '@fontsource/inter@5.3.0': {}
 
+  '@fontsource/lobster@5.3.0': {}
+
   '@fontsource/montserrat@5.3.0': {}
+
+  '@fontsource/pacifico@5.3.0': {}
 
   '@fontsource/poppins@5.3.0': {}
 

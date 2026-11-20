@@ -4,7 +4,9 @@ import {
   type AssetInfo,
   type DesignDocument,
   type DesignNode,
+  type DocumentFont,
   type FontUse,
+  type FontUseRecord,
   type ImageNode,
   type NodeId,
   type Page,
@@ -46,6 +48,7 @@ export function createDocument(options: NewDocumentOptions): DesignDocument {
       },
     ],
     assets: {},
+    fonts: [],
   };
 }
 
@@ -199,10 +202,14 @@ export function insertNodes(
   doc: DesignDocument,
   nodes: readonly DesignNode[],
   assets: readonly AssetInfo[] = [],
+  fonts: readonly DocumentFont[] = [],
   pageId: string = firstPage(doc).id,
 ): DesignDocument {
   let next = doc;
   for (const asset of assets) next = addAsset(next, asset);
+  // A family the design already lists keeps its own pinned files.
+  const added = fonts.filter((font) => !documentFont(next, font.family));
+  if (added.length) next = { ...next, fonts: [...next.fonts, ...added] };
   return mapPage(next, pageId, (page) => ({ ...page, nodes: [...page.nodes, ...nodes] }));
 }
 
@@ -232,6 +239,85 @@ export function fontsUsed(doc: DesignDocument): FontUse[] {
     }
   }
   return [...seen.values()];
+}
+
+// ------------------------------------------------------------------- fonts
+
+/** The design's own record for a family, or undefined when the family is one of the built-in fonts. */
+export function documentFont(doc: DesignDocument, family: string): DocumentFont | undefined {
+  return doc.fonts.find((font) => font.family === family);
+}
+
+/** Add a font to the design, or replace the design's record for that family. */
+export function setDocumentFont(doc: DesignDocument, font: DocumentFont): DesignDocument {
+  const index = doc.fonts.findIndex((f) => f.family === font.family);
+  if (index >= 0 && doc.fonts[index] === font) return doc;
+  const fonts = doc.fonts.slice();
+  if (index >= 0) fonts[index] = font;
+  else fonts.push(font);
+  return { ...doc, fonts };
+}
+
+/** Drop font records no text uses. */
+export function pruneUnusedFonts(doc: DesignDocument): DesignDocument {
+  const used = new Set(fontsUsed(doc).map((use) => use.family));
+  const fonts = doc.fonts.filter((font) => used.has(font.family));
+  return fonts.length === doc.fonts.length ? doc : { ...doc, fonts };
+}
+
+export type FaceKey = Pick<FontUse, 'weight' | 'style'>;
+
+/**
+ * The face a family really has that is closest to the one asked for. The same
+ * style (upright or italic) is preferred; weight is matched as closely as possible.
+ */
+export function nearestFace(faces: readonly FaceKey[], weight: number, style: FontUse['style']): FaceKey | null {
+  const sameStyle = faces.filter((face) => face.style === style);
+  const pool = sameStyle.length ? sameStyle : faces;
+  let best: FaceKey | null = null;
+  for (const face of pool) {
+    if (!best || Math.abs(face.weight - weight) < Math.abs(best.weight - weight)) best = face;
+  }
+  return best ? { weight: best.weight, style: best.style } : null;
+}
+
+/**
+ * Change the font family of some text layers, as one change.
+ *
+ * `faces` are the styles the family really has: each layer moves to the nearest
+ * one, so a weight or italic that does not exist is never asked for. `font` is
+ * the record to keep with the design, or null for a built-in family.
+ */
+export function setTextFont(
+  doc: DesignDocument,
+  ids: readonly NodeId[],
+  family: string,
+  faces: readonly FaceKey[],
+  font: DocumentFont | null,
+): DesignDocument {
+  const patches: Record<NodeId, NodePatch> = {};
+  for (const id of ids) {
+    const found = findNode(doc, id);
+    if (!found || found.node.type !== 'text') continue;
+    const face = nearestFace(faces, found.node.fontWeight, found.node.fontStyle);
+    patches[id] = { fontFamily: family, fontWeight: face?.weight ?? found.node.fontWeight, fontStyle: face?.style ?? found.node.fontStyle };
+  }
+  let next = updateNodes(doc, patches);
+  if (font) next = setDocumentFont(next, font);
+  else if (documentFont(next, family)) next = { ...next, fonts: next.fonts.filter((f) => f.family !== family) };
+  return pruneUnusedFonts(next);
+}
+
+/** Every face in use, with where it comes from. Written into a saved project's manifest. */
+export function fontUseRecords(doc: DesignDocument): FontUseRecord[] {
+  return fontsUsed(doc).map((use) => {
+    const font = documentFont(doc, use.family);
+    if (!font) return { ...use, source: 'bundled', embedded: false };
+    const face = font.faces.find((f) => f.weight === use.weight && f.style === use.style);
+    const record: FontUseRecord = { ...use, source: font.source, embedded: font.embed && !!face && face.files.length > 0 };
+    if (font.license) record.license = font.license;
+    return record;
+  });
 }
 
 /** A new image layer showing the whole image, fitted inside the page and centred. */

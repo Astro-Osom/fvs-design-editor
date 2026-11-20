@@ -34,9 +34,9 @@ describe('portable project file', () => {
     expect(Array.from(opened.assets[0]!.bytes)).toEqual(Array.from(bytes));
     expect(opened.manifest).toMatchObject({
       format: 'fvs-design-project',
-      formatVersion: 1,
+      formatVersion: 2,
       documentName: 'My thumbnail',
-      fonts: [{ family: 'Anton', weight: 400, style: 'normal' }],
+      fonts: [{ family: 'Anton', weight: 400, style: 'normal', source: 'bundled', embedded: false }],
     });
   });
 
@@ -97,7 +97,7 @@ describe('portable project file', () => {
   it('refuses projects from a newer version rather than guessing', async () => {
     const { doc } = await fixture();
     const newerFile = zipSync({
-      'manifest.json': strToU8(JSON.stringify({ format: 'fvs-design-project', formatVersion: 2 })),
+      'manifest.json': strToU8(JSON.stringify({ format: 'fvs-design-project', formatVersion: 99 })),
       'document.json': strToU8(JSON.stringify(doc)),
     });
     await expect(unpackProject(newerFile)).rejects.toThrow(/newer version/);

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "doc_v1fixture0000001",
+  "name": "Saved by format 1",
+  "createdAt": "2026-11-20T10:00:00.000Z",
+  "pages": [
+    {
+      "id": "page_v1fixture000001",
+      "name": "Page 1",
+      "width": 1280,
+      "height": 720,
+      "background": "#ffffff",
+      "nodes": [
+        {
+          "id": "image_v1fixture00001",
+          "type": "image",
+          "name": "photo",
+          "assetId": "65373ec98993982941a115c7c7d7f43e5dfb0a118e80ea769c5126509f6a6806",
+          "x": 208,
+          "y": 36,
+          "width": 864,
+          "height": 648,
+          "rotation": 8,
+          "opacity": 1,
+          "visible": true,
+          "locked": false,
+          "shadow": null,
+          "crop": { "x": 0, "y": 0, "width": 800, "height": 600 },
+          "flipX": false,
+          "flipY": true
+        },
+        {
+          "id": "text_v1fixture000001",
+          "type": "text",
+          "name": "",
+          "text": "MADE WITH\nFORMAT ONE",
+          "x": 192,
+          "y": 273.6,
+          "width": 896,
+          "rotation": -6,
+          "opacity": 0.9,
+          "visible": true,
+          "locked": false,
+          "shadow": { "color": "rgba(0,0,0,0.5)", "blur": 12, "offsetX": 0, "offsetY": 6 },
+          "fontFamily": "Montserrat",
+          "fontWeight": 800,
+          "fontStyle": "italic",
+          "fontSize": 110,
+          "lineHeight": 1.05,
+          "letterSpacing": 20,
+          "align": "center",
+          "fill": "#ffffff",
+          "outline": { "color": "#000000", "width": 14 }
+        }
+      ]
+    }
+  ],
+  "assets": {
+    "65373ec98993982941a115c7c7d7f43e5dfb0a118e80ea769c5126509f6a6806": {
+      "id": "65373ec98993982941a115c7c7d7f43e5dfb0a118e80ea769c5126509f6a6806",
+      "kind": "image",
+      "mime": "image/png",
+      "bytes": 5000,
+      "width": 800,
+      "height": 600,
+      "name": "photo.png"
+    }
+  }
+}

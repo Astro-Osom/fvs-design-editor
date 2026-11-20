@@ -33,6 +33,15 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 /**
+ * A focused button that opens a menu (such as the font list). Enter opens it,
+ * instead of starting to type in the selected text.
+ */
+function opensMenu(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  return !!el && el.tagName === 'BUTTON' && el.hasAttribute('aria-haspopup');
+}
+
+/**
  * Keyboard shortcuts. They are context-aware: while typing in a field or in text
  * on the canvas, keys such as Delete and the arrows belong to the text, not to layers.
  */
@@ -62,6 +71,7 @@ function useShortcuts(): void {
         return;
       }
       if (isTyping(e.target)) return;
+      if (key === 'Enter' && opensMenu(e.target)) return;
 
       const editor = editorRef.current;
       if (state.cropNodeId) {

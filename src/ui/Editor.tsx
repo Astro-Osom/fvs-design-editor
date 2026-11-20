@@ -1,9 +1,12 @@
 import { CircleCheck, Info, Maximize, Minus, Plus, TriangleAlert, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { documentFont } from '../document/ops';
 import { formatSize } from '../document/presets';
+import { findGoogleFamily } from '../fonts/googleCatalogue';
+import { addFontFilesFromPicker, getMissingFontFromGoogle } from '../state/fontActions';
 import { editorRef } from '../state/services';
-import { dismissToast, selectPage, useEditor } from '../state/store';
+import { dismissToast, selectDoc, selectPage, useEditor } from '../state/store';
 import { CanvasView } from './CanvasView';
 import { ContextBar } from './ContextBar';
 import { cx, IconButton, shortcut } from './controls';
@@ -11,6 +14,63 @@ import { ExportDialog } from './ExportDialog';
 import { LeftRail } from './LeftRail';
 import { RightPanel } from './RightPanel';
 import { TopBar } from './TopBar';
+
+const warningButton = 'shrink-0 rounded bg-raised px-2 py-0.5 text-[12px] font-medium text-ink hover:bg-hover disabled:opacity-50';
+
+/** One missing font: why it is missing here, and the quickest way to get it back. */
+function MissingFont({ family }: { family: string }) {
+  const source = useEditor((s) => {
+    const doc = selectDoc(s);
+    return doc ? documentFont(doc, family)?.source : undefined;
+  });
+  const [onGoogle, setOnGoogle] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void findGoogleFamily(family).then((entry) => {
+      if (alive) setOnGoogle(!!entry);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [family]);
+
+  const reason =
+    source === 'google'
+      ? `The font ${family} has not been downloaded to this computer.`
+      : source === 'installed'
+        ? `The font ${family} is not installed on this computer.`
+        : source === 'file'
+          ? `The font file for ${family} is not on this computer.`
+          : `The font ${family} is not available.`;
+
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="missing-font" data-family={family}>
+      <TriangleAlert size={15} className="shrink-0 text-warn" />
+      <span>{reason} Text that uses it is shown in a stand-in font and will look different when exported.</span>
+      {onGoogle && (
+        <button
+          type="button"
+          disabled={progress !== null}
+          data-testid="missing-font-download"
+          className={warningButton}
+          onClick={async () => {
+            setProgress('Downloading…');
+            await getMissingFontFromGoogle(family, { onProgress: (done, total) => setProgress(`Downloading ${done} of ${total}…`) });
+            setProgress(null);
+          }}
+        >
+          {progress ?? 'Get it from Google Fonts'}
+        </button>
+      )}
+      {source !== 'google' && (
+        <button type="button" data-testid="missing-font-add-file" className={warningButton} onClick={() => void addFontFilesFromPicker()}>
+          Add its font file…
+        </button>
+      )}
+    </p>
+  );
+}
 
 /** Problems the person needs to know about. Nothing is substituted or dropped silently. */
 function Warnings() {
@@ -22,14 +82,11 @@ function Warnings() {
       `${n === 1 ? 'One image is' : `${n} images are`} missing from this project. ${n === 1 ? 'It is' : 'They are'} shown as red placeholders, and export will ask before leaving ${n === 1 ? 'it' : 'them'} out.`,
     );
   }
-  if (warnings.missingFonts.length) {
-    const names = [...new Set(warnings.missingFonts.map((f) => f.family))].join(', ');
-    lines.push(`Missing font: ${names}. That text is shown in a substitute font. Pick another font, or it will look different when exported.`);
-  }
   if (warnings.openElsewhere) {
     lines.push('This design is also open in another tab or window. Changes made here and there can overwrite each other; close one of them.');
   }
-  if (!lines.length) return null;
+  const missingFamilies = [...new Set(warnings.missingFonts.map((f) => f.family))];
+  if (!lines.length && !missingFamilies.length) return null;
   return (
     <div role="alert" className="flex shrink-0 flex-col gap-1 border-b border-warn/40 bg-warn/10 px-3 py-2 text-ink" data-testid="warnings">
       {lines.map((line) => (
@@ -37,6 +94,9 @@ function Warnings() {
           <TriangleAlert size={15} className="mt-0.5 shrink-0 text-warn" />
           {line}
         </p>
+      ))}
+      {missingFamilies.map((family) => (
+        <MissingFont key={family} family={family} />
       ))}
     </div>
   );
