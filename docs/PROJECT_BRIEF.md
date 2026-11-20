@@ -135,6 +135,14 @@ Create a smooth, fast, intuitive personal design tool that feels familiar to Can
 6. Test the core workflow with networking disabled.
 
 ## UI Requirements
-Smooth, modern, responsive interface with clean typography, subtle motion, and familiar Canva-like information architecture (left sidebar, contextual toolbar, canvas, layers). No placeholder controls for unsupported features.
+The interface must be elegant, smooth and easy to use. Match the layout and interaction conventions of Adobe Photoshop, but make it simpler and more user-friendly. This section replaces the earlier "Canva-like information architecture" wording wherever the two conflict.
+
+- **Layout:** a tools panel on the left, a contextual options bar across the top, the canvas in the centre, and docked panels on the right (Layers, Properties and Adjustments, History). Use a dark neutral theme by default so the artwork stands out, with a light theme available.
+- **Small tool set:** Move/Select, Crop, Text, Shape, Brush and Eraser (for masks), Hand and Zoom. Only ship tools that work.
+- **Familiar shortcuts:** follow the conventions people already know, such as V move, T text, C crop, B brush, E eraser, H hand, Z zoom, Space-drag to pan, [ and ] for brush size, Cmd/Ctrl+Z undo and Cmd/Ctrl+J duplicate.
+- **Simpler than Photoshop:** no nested tool flyouts, no modal dialogs for common adjustments, plain-language labels, sensible defaults, advanced controls tucked behind progressive disclosure, tooltips that show the shortcut, clear empty states, and one obvious way to do each common task.
+- **Thumbnail work stays close:** presets, the small-size preview and variants are one click away.
+- **Original visual design:** match the familiar structure and behaviour, not the look. Use our own icons, colours and names. Do not copy Adobe's icons, artwork, logos, product names or exact styling.
+- **Polish:** clean typography, subtle motion, reduced-motion support, and no placeholder controls for unsupported features.
 
 Begin by proposing the architecture and the vertical-slice plan (after the open-source research), then implement. Ask only blocking questions.
