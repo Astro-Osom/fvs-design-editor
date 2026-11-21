@@ -1,0 +1,8 @@
+# Which dependencies may run install scripts.
+# canvas (node-canvas) is an optional Fabric dependency used only for server-side
+# rendering; the editor renders in the browser, so it is not built.
+allowBuilds:
+  canvas: false
+  electron: true
+  esbuild: true
+  protobufjs: false
