@@ -83,6 +83,17 @@ pnpm test:e2e
 
 That uses Playwright's own Chromium, installed with `pnpm exec playwright install chromium`. To use an installed Google Chrome instead, set `PW_CHANNEL=chrome`. The desktop test opens an app window for a few seconds.
 
+## Continuous integration
+
+Every pull request, and every push to `main`, is checked automatically on a Linux machine by GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)). It installs the dependencies exactly as the lockfile lists them, then runs the typecheck, the unit tests, and the end-to-end tests in Chromium and in the desktop app.
+
+- A green tick on a pull request means all of that passed on Linux. A red cross links to the step that failed.
+- When an end-to-end test fails, its traces and screenshots are kept for 7 days under "Artifacts" on the run's page.
+- The workflow only reads the repository. It uses no secrets and publishes nothing, and the tests answer Google Fonts and Hugging Face themselves, so a run does not depend on either service.
+- pnpm refuses to install a package that was published less than 24 hours ago. If a dependency is updated to a version released that same day, the "Install dependencies" step fails until the package is a day old; run the check again then.
+
+macOS and Windows are not checked automatically.
+
 ## How it is built
 
 React 19, TypeScript, Vite, Tailwind CSS and Zustand, with Fabric.js 7 drawing the canvas and Electron as the desktop shell. The design is stored in the editor's own versioned document format; Fabric only renders it. The reasoning, the module layout and the file format are in [docs/architecture.md](docs/architecture.md), and the survey of existing editors that led to building from scratch is in [docs/research/open-source-bases.md](docs/research/open-source-bases.md).

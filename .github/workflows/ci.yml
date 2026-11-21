@@ -1,0 +1,88 @@
+# Continuous integration: runs the project's checks on a Linux machine for every
+# pull request and for every push to main.
+#
+# It only reads the repository. It uses no secrets and deploys or publishes
+# nothing. The tests answer Google Fonts and Hugging Face themselves, so the
+# run does not depend on either service.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request replaces the run that was in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Typecheck, unit tests and end-to-end tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Electron's own sandbox is turned off for the desktop tests, as in the
+      # cloud environment: Ubuntu restricts what the sandbox needs when Electron
+      # is installed from npm. Running with it on was not tried. This affects the
+      # test run only; the page still has no Node access, which the desktop test
+      # checks.
+      ELECTRON_DISABLE_SANDBOX: '1'
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # pnpm refuses packages published less than 24 hours ago. If this step
+      # fails for that reason, run the check again once the package is a day old.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      # The same list as scripts/cloud-setup.sh: a virtual display, and the
+      # libraries Electron needs to open a window.
+      - name: Install system packages for the desktop app
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            xvfb xauth libnss3 libgbm1 libgtk-3-0t64 libasound2t64 libxss1 libxtst6
+
+      - name: Install Chromium for Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Download Electron
+        run: pnpm exec install-electron
+
+      # The browser tests are headless; the desktop tests open a real window, so
+      # the whole run gets a virtual display that is larger than that window.
+      - name: End-to-end tests (browser and desktop app)
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e
+
+      - name: Keep traces and screenshots from failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
