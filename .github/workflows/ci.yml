@@ -48,13 +48,10 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # TEMPORARY: delete the --config option after 21 November 2026, 06:20 UTC.
-      # pnpm refuses packages published less than 24 hours ago. lucide-react
-      # 1.77.0, already in the lockfile, came out on 20 November 2026, so this one
-      # exact version is let through (approved by the owner). Every other package
-      # is still held to the rule.
+      # pnpm refuses packages published less than 24 hours ago. If this step
+      # fails for that reason, run the check again once the package is a day old.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --config.minimumReleaseAgeExclude=lucide-react@1.77.0
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
