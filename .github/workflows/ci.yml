@@ -25,10 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # Electron's own sandbox cannot start on GitHub's Linux machines (Ubuntu
-      # does not let an unprivileged program create the namespaces it needs), so
-      # the desktop tests run without it. This affects the test run only; the
-      # page still has no Node access, which the desktop test checks.
+      # Electron's own sandbox is turned off for the desktop tests, as in the
+      # cloud environment: Ubuntu restricts what the sandbox needs when Electron
+      # is installed from npm. Running with it on was not tried. This affects the
+      # test run only; the page still has no Node access, which the desktop test
+      # checks.
       ELECTRON_DISABLE_SANDBOX: '1'
     steps:
       - name: Check out the code

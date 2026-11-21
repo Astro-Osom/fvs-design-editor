@@ -202,12 +202,22 @@ On macOS (Apple silicon), 20 November 2026:
 - Upscaling, in the browser and in the desktop app, with a stand-in model that the real runtime runs in the real worker: upscale, compare, discard, keep (one undo step), undo and redo, save, and reopen with empty storage and no network give a byte-for-byte identical export, without recomputing. The enlarged copy was checked pixel by pixel against what the stand-in must produce. Turning it off gives an export identical to the one made before upscaling. Cancelling during the download and while the worker is starting changes nothing. With no connection, the plain resize is offered and stays labelled. A missing enlarged copy is reported and the original is used.
 - Upscaling with the real model, run in the desktop app on this machine (Apple M1 Pro): a 1280 × 720 photo made 4 times larger took 5.4 to 5.8 seconds on the graphics card (7.3 seconds the first time, including the download) and about 150 seconds on the processor alone. Peak memory for the whole app was between 0.9 and 1.3 GB. Details are in [research/upscaling.md](research/upscaling.md).
 
+On Linux, by the automatic checks (GitHub Actions on Ubuntu 26.04, x64), first run 21 November 2026:
+
+- The same 81 unit tests and 22 end-to-end tests pass: 18 in Chromium and 4 in the Electron app, which runs on a virtual display. A whole run takes about two and a half minutes.
+- Nothing in the app or the tests had to change for Linux.
+- Both tests that use the fonts installed on the machine ran there; neither had to skip. Chromium and the desktop app each listed the machine's fonts and used one, and in the browser the design reopened with a byte-for-byte identical export.
+- The byte-for-byte comparisons are between exports made in the same run. An export made on Linux was not compared with one made on macOS.
+- These checks run again on every pull request and every push to `main`. See [Continuous integration](../README.md#continuous-integration).
+
 Not verified:
 
-- **Linux and Windows.** Nothing has been run on either. That includes how installed fonts are listed and named there.
+- **Windows.** Nothing has been run there. That includes how installed fonts are listed and named.
+- **Linux beyond the automatic checks.** They run on one kind of machine: Ubuntu 26.04, x64, a virtual display and no graphics card. Nobody has used the app by hand on Linux, so other distributions, a real screen and the fonts of a real Linux desktop are not covered.
+- **The desktop app's own sandbox on Linux.** The automatic checks turn Electron's sandbox off, as the cloud environment does. Whether the app starts with it on was not tried.
 - **The cloud environment.** The setup script has still not run on the cloud image.
 - **Web version with no network at all.** It needs its files from the server on first load; there is no offline cache yet. The desktop app has everything on disk.
-- **Screenshot baselines.** There are no stored reference images, because they differ by platform and only macOS was available. The tests compare the app's own exports with each other instead.
+- **Screenshot baselines.** There are no stored reference images, because they differ by platform. The tests compare the app's own exports with each other instead.
 - **Memory growth** over long sessions has not been measured.
 - **Very large photos** have not been tested beyond 1600 × 1200 in automated tests.
 - **Fonts in Firefox and Safari.** They cannot list installed fonts; the "add a font file" path exists for them but was only run in Chrome.
@@ -215,7 +225,7 @@ Not verified:
 - **Including an installed font in a project** is tested with a stand-in for the system's font list, not with a real installed font end to end.
 - **Text in Chinese, Japanese or Korean** was not typed and exported.
 - **Upscale quality on real photographs.** Only a synthetic test picture was looked at. Faces, hair, skin, foliage and screenshots with small text were not tried.
-- **Upscaling on other graphics cards, on Windows or Linux, or in Firefox or Safari.**
+- **Upscaling with the real model on other graphics cards, on Windows or Linux, or in Firefox or Safari.** On Linux only the stand-in model has run, in the automatic checks; whether it ran on the graphics-card path or the processor path there was not recorded.
 - **Cancelling in the middle of the tiles** of a long run is not covered by an automated test (the stand-in model is too fast); cancelling earlier in the same code path is.
 - **Memory after many upscales in one sitting.** It did not return to its starting level between runs; whether that is a leak was not established.
 
